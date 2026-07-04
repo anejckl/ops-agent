@@ -41,6 +41,15 @@ def run_case(case):
             failures.append(f"must_not_match hit: {pat}")
     if checks.get("expect_tools") and not any(case_tools):
         failures.append("expect_tools: no tool was called in any turn")
+    flat = [t for turn in case_tools for t in turn]
+    for tool in checks.get("must_call", []):
+        if tool not in flat:
+            failures.append(f"must_call failed: {tool} was never called")
+    for tool in checks.get("must_not_call", []):
+        if tool in flat:
+            failures.append(f"must_not_call hit: {tool} was called")
+    if checks.get("must_call_any") and not any(t in flat for t in checks["must_call_any"]):
+        failures.append(f"must_call_any failed: none of {checks['must_call_any']} called")
     return {
         "id": case["id"],
         "model": oa.MODEL,
