@@ -504,6 +504,105 @@ SYSTEM_PROMPT = (
 
 MAX_HISTORY_TURNS = 1  # (user, assistant) pairs kept - trimmed hard because this model stops calling tools and starts confabulating once it can see several of its own past answers in context
 
+# --- server-tracked conversation context (feature: real follow-ups without re-opening the confabulation hole) ---
+# The model never sees its own old answers (MAX_HISTORY_TURNS stays 1); instead we track WHICH entity the
+# conversation is about - extracted deterministically from tool RESULTS, never by the LLM - and ride it through
+# the client's existing history echo as a sentinel entry, so old cached PWA clients keep working unchanged.
+CONTEXT_ROLE = "context"
+
+# tool name -> how to pull (name, type) pairs out of its result dict/list
+_ENTITY_SOURCES = {
+    "get_vm_status": lambda r: [(r["name"], r.get("type", "vm"))] if isinstance(r, dict) and r.get("name") else [],
+    "compare_vms": lambda r: [(x["name"], x.get("type", "vm")) for x in r if isinstance(x, dict) and x.get("name")] if isinstance(r, list) else [],
+    "get_container_stats": lambda r: [(r["name"], "container")] if isinstance(r, dict) and r.get("name") else [],
+    "get_container_logs": lambda r: [(r["container"], "container")] if isinstance(r, dict) and r.get("container") else [],
+    "diagnose": lambda r: [(r["entity"], r.get("entity_type", "container"))] if isinstance(r, dict) and r.get("entity") else [],
+}
+
+# list-everything tools name no single entity; their names become CANDIDATES matched against the question text
+_CANDIDATE_SOURCES = {
+    "get_docker_containers": lambda r: [(c["name"], "container") for c in r if isinstance(c, dict) and c.get("name")] if isinstance(r, list) else [],
+    "list_vms": lambda r: [(v["name"], v["type"]) for v in r if isinstance(v, dict) and v.get("name")] if isinstance(r, list) else [],
+    "get_container_stats": lambda r: [(c["name"], "container") for c in r if isinstance(c, dict) and c.get("name")] if isinstance(r, list) else [],
+}
+
+
+def _short_name(name):
+    """'docker-frigate-1' -> 'frigate' - the token users actually type."""
+    return re.sub(r"^docker-|-\d+$", "", name.lower())
+
+
+def _match_question_entities(question, candidates):
+    """Deterministic: which listed entities does the user's own question text name?"""
+    q = (question or "").lower()
+    return [(name, etype) for name, etype in candidates if _short_name(name) in q or name.lower() in q]
+
+
+def _split_history(history):
+    """Separate real chat turns from the sentinel context entry. Malformed context is ignored, never fatal."""
+    turns = [m for m in (history or []) if m.get("role") in ("user", "assistant")]
+    ctx = None
+    for m in history or []:
+        if m.get("role") == CONTEXT_ROLE:
+            try:
+                parsed = json.loads(m.get("content") or "{}")
+                if isinstance(parsed, dict) and parsed.get("entities"):
+                    ctx = parsed
+            except (json.JSONDecodeError, TypeError):
+                pass
+    return turns, ctx
+
+
+def _context_prompt(ctx):
+    if not ctx:
+        return ""
+    ents = ", ".join(f"{e['name']} (a {'Docker container' if e.get('type') == 'container' else 'Proxmox ' + e.get('type', 'VM').upper()})" for e in ctx["entities"][:2])
+    return (
+        f"\nConversation context (server-tracked, verified): the previous question was about {ents}. "
+        "If the user's new message is a vague follow-up ('its logs', 'why?', 'and its memory?', 'since when?'), "
+        "it refers to that entity - resolve pronouns to it and call the right tool with that exact name."
+    )
+
+
+def _context_entry(entities):
+    return {"role": CONTEXT_ROLE, "content": json.dumps({"v": 1, "entities": entities[:2]})}
+
+
+def _merge_entities(turn_info, ctx, question):
+    """Newest-first unique entity list for the next turn's context. Direct tool-result entities win; else
+    entities the question itself named (matched against list-tool results); else carry the old ctx forward."""
+    found = turn_info["entities"] or _match_question_entities(question, turn_info["candidates"])
+    out, seen = [], set()
+    for name, etype in reversed(found):
+        if name not in seen:
+            out.append({"name": name, "type": etype})
+            seen.add(name)
+    if not out and ctx:
+        return ctx["entities"]
+    return out
+
+
+def _exec_tool(fn_name, args, turn_info):
+    """Single tool dispatch point shared by ask() and ask_stream(): error-dict guardrails + deterministic
+    entity extraction. turn_info = {"entities": [], "candidates": []}. Dispatches via TOOLS at call time
+    (replay_eval wraps TOOLS to record calls)."""
+    try:
+        result = TOOLS[fn_name](**args)
+    except KeyError:
+        return {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
+    except TypeError as e:
+        return {"error": f"Invalid arguments for {fn_name}: {e}"}
+    except Exception as e:
+        return {"error": f"tool {fn_name} failed: {e}"}
+    for sources, key in ((_ENTITY_SOURCES, "entities"), (_CANDIDATE_SOURCES, "candidates")):
+        extractor = sources.get(fn_name)
+        if extractor:
+            try:
+                turn_info[key].extend(extractor(result))
+            except (KeyError, TypeError):
+                pass
+    return result
+
 HANZI_RE = re.compile(r"[一-鿿]")
 ENGLISH_REWRITE_NUDGE = "Your answer contained Chinese characters. Rewrite your ENTIRE answer in plain English only, keeping all the same facts and numbers."
 
@@ -514,13 +613,15 @@ def _needs_english_rewrite(content):
 
 
 def ask(question, history=None):
-    """history is a list of prior {role, content} user/assistant turns (no system/tool messages)."""
-    trimmed_history = (history or [])[-(MAX_HISTORY_TURNS * 2):]
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    """history: prior {role, content} user/assistant turns plus an optional trailing server-context entry."""
+    turns, ctx = _split_history(history)
+    trimmed_history = turns[-(MAX_HISTORY_TURNS * 2):]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + _context_prompt(ctx)}]
     messages.extend(trimmed_history)
     messages.append({"role": "user", "content": question})
     tools_called = False
     nudged = False
+    turn_info = {"entities": [], "candidates": []}
     for _ in range(6):
         resp = requests.post(OLLAMA_URL, json={"model": MODEL, "messages": messages, "tools": TOOL_SCHEMAS, "stream": False, "options": {"temperature": 0.1}}, timeout=60).json()
         msg = resp["message"]
@@ -539,7 +640,7 @@ def ask(question, history=None):
                 messages.append({"role": "user", "content": ENGLISH_REWRITE_NUDGE})
                 resp = requests.post(OLLAMA_URL, json={"model": MODEL, "messages": messages, "stream": False, "options": {"temperature": 0.1}}, timeout=60).json()
                 content = resp["message"].get("content") or content
-            new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": content}]
+            new_history = turns + [{"role": "user", "content": question}, {"role": "assistant", "content": content}, _context_entry(_merge_entities(turn_info, ctx, question))]
             return content, new_history
         tools_called = True
         for call in calls:
@@ -547,22 +648,14 @@ def ask(question, history=None):
             args = call["function"]["arguments"]
             if isinstance(args, str):
                 args = json.loads(args)
-            # models sometimes hallucinate argument names or tool names - surface it as data, never a 500
-            try:
-                result = TOOLS[fn_name](**args)
-            except KeyError:
-                result = {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
-            except TypeError as e:
-                result = {"error": f"Invalid arguments for {fn_name}: {e}"}
-            except Exception as e:
-                result = {"error": f"tool {fn_name} failed: {e}"}
+            result = _exec_tool(fn_name, args, turn_info)
             messages.append({"role": "tool", "content": json.dumps(result)})
 
     # exhausted the tool-call budget without a final answer - force one plain reply instead of leaking an internal error
     messages.append({"role": "user", "content": "Answer now based on what you've found so far. If the specific information isn't available from any of the tools, say so plainly instead of trying another tool call."})
     resp = requests.post(OLLAMA_URL, json={"model": MODEL, "messages": messages, "stream": False, "options": {"temperature": 0.1}}, timeout=60).json()
     final_content = resp["message"]["content"] or "I wasn't able to find that specific information with the tools available."
-    new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": final_content}]
+    new_history = turns + [{"role": "user", "content": question}, {"role": "assistant", "content": final_content}, _context_entry(_merge_entities(turn_info, ctx, question))]
     return final_content, new_history
 
 
@@ -580,12 +673,14 @@ def ask_stream(question, history=None):
     ('reset', None) when already-emitted tokens must be discarded (content leaked before a tool call,
     or the fabrication guardrail fired), ('done', {reply, history}), ('error', message).
     Any guardrail change here must be mirrored in ask() and vice versa."""
-    trimmed_history = (history or [])[-(MAX_HISTORY_TURNS * 2):]
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    turns, ctx = _split_history(history)
+    trimmed_history = turns[-(MAX_HISTORY_TURNS * 2):]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT + _context_prompt(ctx)}]
     messages.extend(trimmed_history)
     messages.append({"role": "user", "content": question})
     tools_called = False
     nudged = False
+    turn_info = {"entities": [], "candidates": []}
     try:
         for _ in range(6):
             content_parts = []
@@ -614,14 +709,7 @@ def ask_stream(question, history=None):
                     if isinstance(args, str):
                         args = json.loads(args)
                     yield ("status", fn_name)
-                    try:
-                        result = TOOLS[fn_name](**args)
-                    except KeyError:
-                        result = {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
-                    except TypeError as e:
-                        result = {"error": f"Invalid arguments for {fn_name}: {e}"}
-                    except Exception as e:
-                        result = {"error": f"tool {fn_name} failed: {e}"}
+                    result = _exec_tool(fn_name, args, turn_info)
                     messages.append({"role": "tool", "content": json.dumps(result)})
                 continue
             # same fabrication signature as in ask(): numbers with zero tool calls this turn
@@ -644,7 +732,7 @@ def ask_stream(question, history=None):
                     if chunk.get("done"):
                         break
                 content = "".join(parts) or content
-            new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": content}]
+            new_history = turns + [{"role": "user", "content": question}, {"role": "assistant", "content": content}, _context_entry(_merge_entities(turn_info, ctx, question))]
             yield ("done", {"reply": content, "history": new_history})
             return
         # tool-call budget exhausted - force one final plain reply, streamed
@@ -658,7 +746,7 @@ def ask_stream(question, history=None):
             if chunk.get("done"):
                 break
         final = "".join(parts) or "I wasn't able to find that specific information with the tools available."
-        new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": final}]
+        new_history = turns + [{"role": "user", "content": question}, {"role": "assistant", "content": final}, _context_entry(_merge_entities(turn_info, ctx, question))]
         yield ("done", {"reply": final, "history": new_history})
     except Exception as e:
         yield ("error", str(e))

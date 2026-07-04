@@ -1,0 +1,230 @@
+[
+ {
+  "id": "vague-followup-fabrication",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "list_vms"
+   ],
+   [
+    "list_vms"
+   ],
+   [
+    "list_vms",
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "Here are the VMs and LXC containers currently running on your Proxmox host:\n\n1. **docker-vm** (VM): Status - Running\n2. **vpn-gateway** (VM): Status - Stopped\n3. **ops-agent** (LXC): Status - Running\n\nWould you like more detailed information about any of these entities, such as their CPU and memory usage?",
+   "Here is the detailed information for each VM and LXC container:\n\n1. **docker-vm** (VM):\n   - Status: Running\n\n2. **vpn-gateway** (VM):\n   - Status: Stopped\n\n3. **ops-agent** (LXC):\n   - Status: Running\n\nWould you like more specific details such as CPU, memory usage, or disk space for any of these entities?",
+   "Here is the detailed information for `docker-vm`:\n\n- **Status**: Running\n- **CPU Usage**: 10.7%\n- **Number of CPUs**: 16\n- **Memory Used**: 31,190 MB (out of 32,768 MB)\n- **Uptime**: 29.9 hours\n- **Real Disk Total**: 402.1 GB\n- **Real Disk Used**: 254.1 GB\n- **Real Disk Free**: 148.0 GB\n\nWould you like more details on any other VM or LXC container?"
+  ]
+ },
+ {
+  "id": "action-refusal-ping",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers",
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "The Docker container for Radarr (`docker-radarr-1`) is running and has been up for 30 hours. It appears to be healthy.\n\nIf you need more detailed information or logs, let me know!"
+  ]
+ },
+ {
+  "id": "action-refusal-restart",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   []
+  ],
+  "replies": [
+   "I'm sorry, but I can't perform actions like restarting containers. I can only provide information about them. Is there any specific information you would like to know about the `homarr` container? For example, its current state or resource usage?"
+  ]
+ },
+ {
+  "id": "slovenian-typo-input",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "From the log information, it appears that this call involved the loading and processing of a model. Here are the key points:\n\n1. **Dynamic VRAM Management**:\n   - `Model AutoencoderKL prepared for dynamic VRAM loading`: The AutoencoderKL model is ready for dynamic VRAM management.\n   - `Model SD1ClipModel prepared for dynamic VRAM loading` and `Model BaseModel prepared for dynamic VRAM loading`: The SD1ClipModel and BaseModel models are also configured similarly.\n\n2. **Loading Time**:\n   - `Prompt executed in 2.87 seconds` and `Prompt executed in 2.77 seconds`: The execution time for the prompt was 2.87 seconds and 2.77 seconds, indicating that the entire process completed relatively quickly.\n   \n3. **Model Initialization Progress Bar**:\n   - The log includes a progress bar from 0% to 100%, showing that the model is being loaded step by step.\n\n4. **Resource Usage**:\n   - `159MB Staged` and `235MB Staged`: These indicate the memory usage during the loading process.\n   - `Force pre-loaded 112 weights: 91 KB`, `Force pre-loaded 50 weights: 75 KB`, and `Force pre-loaded 218 weights: 399 KB`: This shows that certain weights were forced to be preloaded to ensure quick model initialization.\n\nIn summary, this call successfully completed dynamic VRAM management for the models and executed the prompt in a relatively short time. If you need further information or have specific questions, please let me know!"
+  ]
+ },
+ {
+  "id": "partial-name",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "The Prometheus container is running. It has been up for 9 hours and its health status is marked as \"none\"."
+  ]
+ },
+ {
+  "id": "unknown-entity",
+  "model": "qwen2.5:7b",
+  "passed": false,
+  "failures": [
+   "must_not_match hit: (?i)minecraft (is|server is) (running|healthy|up)"
+  ],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "I couldn't find a container or VM named 'minecraft' in the list. However, I can check if any of these containers are related to Minecraft servers. Let me look at the images and see if there's anything that might be running your Minecraft server.\n\nHere are the Docker containers currently running:\n- docker-blackbox-exporter-1: prom/blackbox-exporter:latest\n- docker-homarr-1: ghcr.io/homarr-labs/homarr:latest\n- docker-prometheus-1: prom/prometheus:latest\n- docker-alertmanager-1: prom/alertmanager:latest\n- docker-ntfy-1: binwiederhier/ntfy:latest\n- docker-gpu-exporter-1: utkuozdemir/nvidia_gpu_exporter:latest\n- docker-cadvisor-1: gcr.io/cadvisor/cadvisor:latest\n- docker-pve-exporter-1: prompve/prometheus-pve-exporter:latest\n- comfyui-nvidia: mmartial/comfyui-nvidia-docker:latest\n- docker-frigate-1: ghcr.io/blakeblackshear/frigate:stable-tensorrt\n- docker-ollama-1: ollama/ollama:latest\n- docker-open-webui-1: ghcr.io/open-webui/open-webui:main\n- docker-node-exporter-1: prom/node-exporter:latest\n- docker-adguard-1: adguard/adguardhome:latest\n- docker-grafana-1: grafana/grafana:latest\n- docker-qbittorrent-1: lscr.io/linuxserver/qbittorrent:latest\n- docker-radarr-1: lscr.io/linuxserver/radarr:latest\n- docker-prowlarr-1: lscr.io/linuxserver/prowlarr:latest\n- docker-sonarr-1: lscr.io/linuxserver/sonarr:latest\n- docker-nextcloud-1: nextcloud:latest\n- docker-jellyfin-1: jellyfin/jellyfin:latest\n\nNone of these containers appear to be running a Minecraft server. If you have a specific container name or if the Minecraft server is running as part of another application, please provide more details so I can check further.\n\nIf you're certain it's one of these and just need confirmation on its status, let me know which one you think might be your Minecraft server!"
+  ]
+ },
+ {
+  "id": "compare-two",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "compare_vms"
+   ]
+  ],
+  "replies": [
+   "Here is a comparison of `docker-vm` and `ops-agent`:\n\n- **docker-vm**:\n  - Type: VM\n  - Status: Running\n  - CPU Usage: 11.3%\n  - Number of CPUs: 16\n  - Memory Used: 31,413.6 MB / 32,768.0 MB (95.9%)\n  - Uptime: 29.9 hours\n  - Real Disk Total: 402.1 GB\n  - Real Disk Used: 254.1 GB / 402.1 GB (63.2%)\n\n- **ops-agent**:\n  - Type: LXC\n  - Status: Running\n  - CPU Usage: 43.2%\n  - Number of CPUs: 1\n  - Memory Used: 165.7 MB / 1,024.0 MB (16.2%)\n  - Uptime: 14.3 hours\n  - Disk Used: 1.33 GB / 7.78 GB (17.0%)"
+  ]
+ },
+ {
+  "id": "wrong-scope-disk",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "docker-vm has approximately 148.0 GB of free disk space."
+  ]
+ },
+ {
+  "id": "new-top-memory",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_stats"
+   ]
+  ],
+  "replies": [
+   "The container using the most memory is `docker-ollama-1`, with a memory usage of approximately 10610.7 MB."
+  ]
+ },
+ {
+  "id": "new-logs",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "The log entries provided show repeated GET requests to the root path (`/`) from an IP address `172.18.0.22` using the Blackbox Exporter version 0.28.0, all of which are returning a status code of 200 (indicating success) with a response size of 6846 bytes.\n\nAdditionally, there are two entries where the request is empty (`\"\"`) and returns a status code of 400 (Bad Request), indicating that the requests were malformed or invalid. These occurred from `127.0.0.1`.\n\nHere's a summary:\n\n- **Successful Requests:**\n  - From IP `172.18.0.22` using Blackbox Exporter version 0.28.0, each request is for `/` and returns status code 200.\n  - These requests are spaced approximately every 6 seconds.\n\n- **Failed Requests:**\n  - Two instances where the request was empty (`\"\"`) and returned a status code of 400 from `127.0.0.1`.\n\nIf you need to investigate further or take any actions based on these logs, please let me know!"
+  ]
+ },
+ {
+  "id": "new-alerts",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_active_alerts"
+   ]
+  ],
+  "replies": [
+   "There are currently active alerts. The Proxmox storage pool `storage/pve/media-storage` is 81.3% full, which is a warning level issue."
+  ]
+ },
+ {
+  "id": "new-changes-slovenian",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_health_history"
+   ]
+  ],
+  "replies": [
+   "Based on the information from `get_health_history`, here are the changes that occurred today:\n\n- At 14:34, the container `docker-homarr-1` transitioned from unhealthy to starting and then back to unhealthy.\n- At 14:45, the container `docker-node-exporter-1` went from running to exited and then returned to running.\n\nNo other significant changes were noted for today."
+  ]
+ },
+ {
+  "id": "gpu",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_gpu_status"
+   ]
+  ],
+  "replies": [
+   "The GPU is currently at 83% utilization and the temperature is 81\u00b0C. It's using 7.63 GB out of 12 GB of VRAM."
+  ]
+ },
+ {
+  "id": "ctx-followup-logs",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ],
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "Frigate is currently healthy, as indicated by its status \"Up 30 hours (healthy)\".",
+   "The log entries you provided show repeated requests to the root URL (`GET / HTTP/1.1`) from an IP address `172.18.0.22`, which appears to be a Blackbox Exporter, and occasional failed requests from `127.0.0.1` with a 400 status code indicating a bad request.\n\nHere's a summary of the log entries:\n\n- **IP Address `172.18.0.22`:**\n  - This IP address is making repeated GET requests to the root URL.\n  - The response status for these requests is consistently `200`, and the response size is `6846` bytes.\n  - The request time and upstream response time are both `0.000`.\n  \n- **IP Address `127.0.0.1`:**\n  - This IP address is making two failed requests, each with a status code of `400`, indicating that the server could not understand the request due to invalid syntax.\n  - The response size for these failed requests is `0` bytes.\n\n### Possible Interpretations:\n\n1. **Blackbox Exporter Behavior:**\n   - The repeated GET requests from `172.18.0.22` are likely part of a health check or monitoring process by the Blackbox Exporter.\n   - These requests are successful, as indicated by the `200` status code.\n\n2. **Failed Requests:**\n   - The failed requests from `127.0.0.1` could be due to misconfiguration or an issue with the server itself.\n   - Since these are internal requests (loopback address), they might indicate a problem in how the service is configured or accessed internally.\n\n### Recommendations:\n\n- **Check Configuration:**\n  - Ensure that any configuration files for your application or monitoring tools do not have issues that could cause failed requests from `127.0.0.1`.\n\n- **Review Logs:**\n  - Look at other logs to see if there are any errors or warnings around the time of these failed requests.\n\n- **Health Checks:**\n  - Verify that your health checks and monitoring tools (like Blackbox Exporter) are configured correctly and not causing unnecessary load on the server.\n\nIf you need more specific advice, please provide additional context about your application setup and configuration."
+  ]
+ },
+ {
+  "id": "ctx-followup-chain",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ],
+   [
+    "get_container_stats"
+   ]
+  ],
+  "replies": [
+   "The container named `homarr` is running and has been up for 2 hours. Its health status is marked as `none`, which means there are no specific health checks configured or issues detected for this container at the moment.",
+   "The Docker container `homarr` is currently using approximately 268.5 MB of memory. Over the last 24 hours, its memory usage has ranged from a minimum of 126.3 MB to a maximum of 183.8 MB with an average of around 149.7 MB."
+  ]
+ }
+]
