@@ -7,13 +7,13 @@ from datetime import datetime, timezone
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel
 
 from ops_agent import (
     list_vms, get_vm_status, get_storage_status, get_node_status, get_docker_containers,
     get_trend_series, get_gpu_status, get_guest_trend, get_container_trend, get_recent_events,
-    ask, notify_ntfy,
+    ask, ask_stream, notify_ntfy,
 )
 
 app = FastAPI()
@@ -93,6 +93,20 @@ def chat(req: ChatRequest):
     reply, new_history = ask(req.message, req.history)
     log_chat(req.message, reply)
     return {"reply": reply, "history": new_history}
+
+
+@app.post("/api/chat/stream")
+def chat_stream(req: ChatRequest):
+    def gen():
+        for event, data in ask_stream(req.message, req.history):
+            yield f"event: {event}\ndata: {json.dumps(data)}\n\n"
+            if event == "done":
+                log_chat(req.message, data["reply"])
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 SEVERITY_PRIORITY = {"critical": "urgent", "warning": "default"}

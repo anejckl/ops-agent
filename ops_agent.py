@@ -541,6 +541,87 @@ def ask(question, history=None):
     return final_content, new_history
 
 
+def _ollama_stream(payload):
+    """Yield parsed JSON chunks from a streaming Ollama /api/chat call."""
+    with requests.post(OLLAMA_URL, json=payload, stream=True, timeout=180) as r:
+        r.raise_for_status()
+        for line in r.iter_lines():
+            if line:
+                yield json.loads(line)
+
+
+def ask_stream(question, history=None):
+    """Streaming twin of ask() - yields (event, data) tuples: ('status', tool_name), ('token', text),
+    ('reset', None) when already-emitted tokens must be discarded (content leaked before a tool call,
+    or the fabrication guardrail fired), ('done', {reply, history}), ('error', message).
+    Any guardrail change here must be mirrored in ask() and vice versa."""
+    trimmed_history = (history or [])[-(MAX_HISTORY_TURNS * 2):]
+    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    messages.extend(trimmed_history)
+    messages.append({"role": "user", "content": question})
+    tools_called = False
+    nudged = False
+    try:
+        for _ in range(6):
+            content_parts = []
+            tool_calls = []
+            emitted = False
+            for chunk in _ollama_stream({"model": MODEL, "messages": messages, "tools": TOOL_SCHEMAS, "stream": True, "options": {"temperature": 0.1}}):
+                m = chunk.get("message", {})
+                if m.get("content"):
+                    content_parts.append(m["content"])
+                    if not tool_calls:  # optimistic: stream content unless this turns out to be a tool-call message
+                        emitted = True
+                        yield ("token", m["content"])
+                if m.get("tool_calls"):
+                    tool_calls.extend(m["tool_calls"])
+                if chunk.get("done"):
+                    break
+            content = "".join(content_parts)
+            if tool_calls:
+                if emitted:
+                    yield ("reset", None)
+                messages.append({"role": "assistant", "content": content, "tool_calls": tool_calls})
+                tools_called = True
+                for call in tool_calls:
+                    fn_name = call["function"]["name"]
+                    args = call["function"]["arguments"]
+                    if isinstance(args, str):
+                        args = json.loads(args)
+                    yield ("status", fn_name)
+                    try:
+                        result = TOOLS[fn_name](**args)
+                    except Exception as e:
+                        result = {"error": f"tool {fn_name} failed: {e}"}
+                    messages.append({"role": "tool", "content": json.dumps(result)})
+                continue
+            # same fabrication signature as in ask(): numbers with zero tool calls this turn
+            if not tools_called and not nudged and re.search(r"\d", content):
+                if emitted:
+                    yield ("reset", None)
+                messages.append({"role": "user", "content": "Do not answer from memory. Call the most relevant tool(s) first to get fresh, verified data, then answer using only those results."})
+                nudged = True
+                continue
+            new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": content}]
+            yield ("done", {"reply": content, "history": new_history})
+            return
+        # tool-call budget exhausted - force one final plain reply, streamed
+        messages.append({"role": "user", "content": "Answer now based on what you've found so far. If the specific information isn't available from any of the tools, say so plainly instead of trying another tool call."})
+        parts = []
+        for chunk in _ollama_stream({"model": MODEL, "messages": messages, "stream": True, "options": {"temperature": 0.1}}):
+            m = chunk.get("message", {})
+            if m.get("content"):
+                parts.append(m["content"])
+                yield ("token", m["content"])
+            if chunk.get("done"):
+                break
+        final = "".join(parts) or "I wasn't able to find that specific information with the tools available."
+        new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": final}]
+        yield ("done", {"reply": final, "history": new_history})
+    except Exception as e:
+        yield ("error", str(e))
+
+
 if __name__ == "__main__":
     question = " ".join(sys.argv[1:]) or "How much free disk space is on VM 100?"
     reply, _ = ask(question)

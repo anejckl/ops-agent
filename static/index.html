@@ -137,6 +137,16 @@
   #msgs.show { display: block; }
   .msg { padding: 10px 14px; border-radius: 16px; margin: 5px 0; font-size: 14px; max-width: 88%; white-space: pre-wrap; overflow-wrap: break-word; line-height: 1.45; }
   .msg b, .msg strong { font-weight: 600; }
+  .msg pre { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 8px 10px; overflow-x: auto; font-size: 12px; white-space: pre; margin: 6px 0; }
+  .msg code { background: var(--surface-2); padding: 1px 5px; border-radius: 5px; font-size: 12.5px; }
+  .msg ul, .msg ol { margin: 4px 0; padding-left: 18px; white-space: normal; }
+  .msg li { margin: 3px 0; }
+  .msg table { border-collapse: collapse; font-size: 12.5px; margin: 6px 0; white-space: normal; display: block; overflow-x: auto; }
+  .msg th, .msg td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+  .msg th { background: var(--surface-2); font-weight: 600; }
+  .msg .pending { color: var(--ink-muted); }
+  #chips { margin-bottom: 8px; }
+  #chips:empty { display: none; }
   .msg.user { background: var(--blue); color: #fff; margin-left: auto; border-bottom-right-radius: 5px; }
   .msg.assistant { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
   #inputRow { display: flex; gap: 8px; }
@@ -195,6 +205,7 @@
 <div id="chat">
   <div id="chat-inner">
     <div id="msgs"></div>
+    <div id="chips" class="chips"></div>
     <div id="inputRow">
       <input id="q" placeholder="Vprašaj kaj o homelabu..." autocomplete="off">
       <button id="send">Pošlji</button>
@@ -452,8 +463,24 @@ function escapeHtml(s) {
 
 function renderMarkdownish(text) {
   let s = escapeHtml(text);
+  s = s.replace(/```[a-zA-Z]*\n?([\s\S]*?)```/g, (_, code) => `<pre>${code.replace(/\n$/, '')}</pre>`);
+  s = s.replace(/`([^`\n]+)`/g, '<code>$1</code>');
   s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
   s = s.replace(/^#{1,6}\s*(.+)$/gm, '<b>$1</b>');
+  // simple pipe tables (with optional |---| separator rows, which are dropped)
+  s = s.replace(/((?:^\|.*\|[ \t]*$\n?)+)/gm, block => {
+    const rows = block.trim().split('\n').filter(r => !/^\|[\s:|-]+\|$/.test(r));
+    if (rows.length < 2) return block;
+    const cells = rows.map(r => r.replace(/^\||\|$/g, '').split('|').map(c => c.trim()));
+    return '<table>' + cells.map((r, i) =>
+      '<tr>' + r.map(c => i === 0 ? `<th>${c}</th>` : `<td>${c}</td>`).join('') + '</tr>'
+    ).join('') + '</table>';
+  });
+  // runs of "- " / "* " lines -> <ul>, "1. " lines -> <ol> (newlines consumed: .msg is pre-wrap)
+  s = s.replace(/((?:^[-*] .*$\n?)+)/gm, block =>
+    '<ul>' + block.trim().split('\n').map(l => `<li>${l.replace(/^[-*] /, '')}</li>`).join('') + '</ul>');
+  s = s.replace(/((?:^\d+\. .*$\n?)+)/gm, block =>
+    '<ol>' + block.trim().split('\n').map(l => `<li>${l.replace(/^\d+\. /, '')}</li>`).join('') + '</ol>');
   return s;
 }
 
@@ -466,29 +493,100 @@ function addMsg(role, text) {
   msgs.scrollTop = msgs.scrollHeight;
 }
 
+const SUGGESTIONS = [
+  'Kateri container porabi največ pomnilnika?',
+  'So kakšni aktivni alarmi?',
+  'Kaj se je spremenilo zadnjih 24 ur?',
+  'Kakšno je stanje Frigate containerja?',
+  'Kako obremenjen je GPU?',
+];
+const chipsEl = document.getElementById('chips');
+
+function renderChips() {
+  chipsEl.innerHTML = history.length ? '' : SUGGESTIONS.map(s =>
+    `<button class="chip" data-sug="${s}">${s}</button>`).join('');
+}
+
+chipsEl.addEventListener('click', e => {
+  const c = e.target.closest('.chip[data-sug]');
+  if (c) { q.value = c.dataset.sug; sendMsg(); }
+});
+
+/* parse an SSE byte stream: frames separated by \n\n, "event:" + "data:" lines */
+async function streamChat(text, bubble) {
+  const r = await fetch('/api/chat/stream', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({message: text, history})
+  });
+  if (!r.ok || !r.body) throw new Error('stream unavailable');
+  const reader = r.body.getReader();
+  const dec = new TextDecoder();
+  let buf = '', acc = '', gotDone = false;
+  while (true) {
+    const {done, value} = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, {stream: true});
+    let idx;
+    while ((idx = buf.indexOf('\n\n')) >= 0) {
+      const frame = buf.slice(0, idx);
+      buf = buf.slice(idx + 2);
+      let ev = 'message', data = '';
+      for (const line of frame.split('\n')) {
+        if (line.startsWith('event: ')) ev = line.slice(7);
+        else if (line.startsWith('data: ')) data += line.slice(6);
+      }
+      if (!data) continue;
+      const d = JSON.parse(data);
+      if (ev === 'token') {
+        acc += d;
+        bubble.innerHTML = renderMarkdownish(acc);
+        msgs.scrollTop = msgs.scrollHeight;
+      } else if (ev === 'reset') {
+        acc = '';
+        bubble.innerHTML = '<span class="pending">…</span>';
+      } else if (ev === 'status') {
+        if (!acc) bubble.innerHTML = `<span class="pending">preverjam: ${escapeHtml(d)}…</span>`;
+      } else if (ev === 'done') {
+        history = d.history;
+        bubble.innerHTML = renderMarkdownish(d.reply);
+        gotDone = true;
+      } else if (ev === 'error') {
+        throw new Error(d);
+      }
+    }
+  }
+  if (!gotDone) throw new Error('stream ended without a reply');
+}
+
 async function sendMsg() {
   const text = q.value.trim();
   if (!text) return;
   q.value = '';
   send.disabled = true;
+  chipsEl.innerHTML = '';
   addMsg('user', text);
-  const thinking = document.createElement('div');
-  thinking.className = 'msg assistant muted';
-  thinking.textContent = '…';
-  msgs.appendChild(thinking);
+  const bubble = document.createElement('div');
+  bubble.className = 'msg assistant';
+  bubble.innerHTML = '<span class="pending">…</span>';
+  msgs.appendChild(bubble);
   msgs.scrollTop = msgs.scrollHeight;
   try {
-    const r = await fetch('/api/chat', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({message: text, history})
-    });
-    const d = await r.json();
-    history = d.history;
-    thinking.remove();
-    addMsg('assistant', d.reply);
+    await streamChat(text, bubble);
   } catch (e) {
-    thinking.textContent = 'Napaka: ' + e;
+    // fall back to the non-streaming endpoint (older Safari, or a mid-stream failure)
+    try {
+      const r = await fetch('/api/chat', {
+        method: 'POST', headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({message: text, history})
+      });
+      const d = await r.json();
+      history = d.history;
+      bubble.innerHTML = renderMarkdownish(d.reply);
+    } catch (e2) {
+      bubble.textContent = 'Napaka: ' + e2;
+    }
   }
+  msgs.scrollTop = msgs.scrollHeight;
   send.disabled = false;
 }
 
@@ -579,6 +677,7 @@ sheetBody.addEventListener('click', e => {
 
 loadHealth();
 setInterval(loadHealth, 30000);
+renderChips();
 </script>
 </body>
 </html>
