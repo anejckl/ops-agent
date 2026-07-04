@@ -4,7 +4,9 @@ import json
 import os
 from datetime import datetime, timezone
 
-from fastapi import FastAPI, Header, HTTPException
+import time
+
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
@@ -13,7 +15,7 @@ from pydantic import BaseModel
 from ops_agent import (
     list_vms, get_vm_status, get_storage_status, get_node_status, get_docker_containers,
     get_trend_series, get_gpu_status, get_guest_trend, get_container_trend, get_recent_events,
-    read_anomalies, get_storage_forecasts,
+    read_anomalies, get_storage_forecasts, diagnose, map_alert_to_entity,
     ask, ask_stream, notify_ntfy,
 )
 
@@ -116,8 +118,36 @@ SEVERITY_PRIORITY = {"critical": "urgent", "warning": "default"}
 SEVERITY_TAGS = {"critical": "rotating_light", "warning": "warning"}
 
 
+# auto-diagnosis dedup: don't re-diagnose the same (alertname, entity) within 30 min. In-memory is fine:
+# single uvicorn worker; a restart merely allows one extra diagnosis.
+_LAST_DIAG = {}
+DIAG_DEDUP_SECONDS = 30 * 60
+
+
+def _diagnose_and_push(alert):
+    """Background: attach an AI probable-cause to a firing alert as a SECOND ntfy push. The raw alert has
+    already been delivered - any failure here must stay silent."""
+    try:
+        labels = alert.get("labels", {})
+        alertname = labels.get("alertname", "Alert")
+        mapped = map_alert_to_entity(labels, alertname)
+        if not mapped:
+            return
+        _, entity = mapped
+        now = time.time()
+        if now - _LAST_DIAG.get((alertname, entity), 0) < DIAG_DEDUP_SECONDS:
+            return
+        _LAST_DIAG[(alertname, entity)] = now
+        result = diagnose(entity, timeout=120)
+        text = result.get("diagnosis") if isinstance(result, dict) else None
+        if text:
+            notify_ntfy(f"AI diagnoza: {alertname}", text[:800], "default", "brain")
+    except Exception:
+        pass
+
+
 @app.post("/api/alerts/webhook")
-def alerts_webhook(payload: dict, authorization: str = Header(None)):
+def alerts_webhook(payload: dict, background_tasks: BackgroundTasks, authorization: str = Header(None)):
     expected_token = os.environ.get("ALERT_RELAY_TOKEN", "")
     if not expected_token or not hmac.compare_digest(authorization or "", f"Bearer {expected_token}"):
         raise HTTPException(status_code=401, detail="unauthorized")
@@ -133,6 +163,8 @@ def alerts_webhook(payload: dict, authorization: str = Header(None)):
             "low" if resolved else SEVERITY_PRIORITY.get(sev, "default"),
             "white_check_mark" if resolved else SEVERITY_TAGS.get(sev, "bell"),
         )
+        if not resolved:
+            background_tasks.add_task(_diagnose_and_push, alert)
     return {"ok": True}
 
 
