@@ -13,6 +13,7 @@ from pydantic import BaseModel
 from ops_agent import (
     list_vms, get_vm_status, get_storage_status, get_node_status, get_docker_containers,
     get_trend_series, get_gpu_status, get_guest_trend, get_container_trend, get_recent_events,
+    read_anomalies, get_storage_forecasts,
     ask, ask_stream, notify_ntfy,
 )
 
@@ -48,6 +49,8 @@ def health():
         "mem_trend": trend["mem"],
         "gpu": gpu,
         "events": get_recent_events(24)[:15],
+        "anomalies": read_anomalies(48)[:10],
+        "forecasts": get_storage_forecasts(),
     }
 
 

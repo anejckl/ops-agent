@@ -409,11 +409,15 @@ async function loadHealth() {
     html += `<div class="card"><h2>${icon('disk')} Shramba</h2>`;
     const pools = d.storage.filter(s => s.total_gb);
     pools.forEach((s, i) => {
+      const last = i === pools.length - 1;
+      const fc = d.forecasts && d.forecasts[s.storage];
+      const fcCap = fc && fc.days_left != null && fc.days_left <= 90
+        ? `<div class="spark-caption" style="margin:-12px 0 16px">polno čez ~${Math.round(fc.days_left)} dni (${fc.gb_per_day} GB/dan)</div>` : '';
       html += `<div class="stat-row">
         <span class="label">${icon('disk')} ${s.storage}</span>
         <span class="value">${fmtGB(s.used_gb)}<span class="unit"> / ${fmtGB(s.total_gb)} GB</span></span>
       </div>`;
-      html += `<div class="meter ${meterClass(s.percent_used)}" style="margin-bottom:${i === pools.length - 1 ? '0' : '16px'}"><div style="width:${Math.min(s.percent_used,100)}%"></div></div>`;
+      html += `<div class="meter ${meterClass(s.percent_used)}" style="margin-bottom:${last && !fcCap ? '0' : '16px'}"><div style="width:${Math.min(s.percent_used,100)}%"></div></div>${fcCap}`;
     });
     html += `</div>`;
 
@@ -436,6 +440,17 @@ async function loadHealth() {
         else st = 'stopped';
         html += svcRow(iconForContainer(c.name), c.name, c.status, st,
           `data-type="container" data-id="${c.name}" data-name="${c.name}"`);
+      });
+      html += `</div>`;
+    }
+
+    if (d.anomalies && d.anomalies.length) {
+      html += `<div class="card"><h2>${icon('spark')} Anomalije</h2>`;
+      d.anomalies.forEach(a => {
+        html += `<div class="event-row">
+          <span class="when">${a.time.slice(5)}</span>
+          <span class="what critical"><b>${a.entity}</b> · ${a.metric.toUpperCase()} ${a.value} ${a.unit || ''} (običajno ~${a.baseline_median})</span>
+        </div>`;
       });
       html += `</div>`;
     }

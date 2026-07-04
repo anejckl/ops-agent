@@ -13,3 +13,4 @@
 {"id": "gpu", "turns": ["how hot is the GPU right now?"], "checks": {"must_match": ["°C|degrees|\\d+\\s?C\\b"], "expect_tools": true}}
 {"id": "ctx-followup-logs", "turns": ["is frigate healthy?", "show me its logs"], "checks": {"must_call": ["get_container_logs"], "must_match": ["(?i)frigate"], "expect_tools": true}}
 {"id": "ctx-followup-chain", "turns": ["is homarr healthy?", "and its memory usage?"], "checks": {"must_call": ["get_container_stats"], "must_match": ["(?i)homarr"], "must_not_match": ["[\\u4e00-\\u9fff]"]}}
+{"id": "anomalies-tool", "turns": ["was there anything unusual or abnormal in the last day?"], "checks": {"must_call": ["get_anomalies"], "expect_tools": true}}

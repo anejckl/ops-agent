@@ -28,6 +28,7 @@ def gather_facts():
             facts[key] = {"error": str(e)[:100]}
 
     grab("cpu_mem_trend_24h", oa.get_metric_trend, 24)
+    grab("anomalies_24h", oa.read_anomalies, 24)
     grab("state_changes_24h", oa.get_health_history, 24)
     grab("active_alerts", oa.get_active_alerts)
     grab("gpu", oa.get_gpu_status)

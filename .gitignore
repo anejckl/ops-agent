@@ -2,3 +2,7 @@ __pycache__/
 chat.log
 health_history.jsonl
 health_state.json
+baselines.json
+anomaly_state.json
+anomalies.jsonl
+replay_*.json
