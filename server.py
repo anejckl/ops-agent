@@ -10,7 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
-from ops_agent import list_vms, get_vm_status, get_storage_status, get_node_status, get_docker_containers, get_trend_series, get_gpu_status, ask, notify_ntfy
+from ops_agent import (
+    list_vms, get_vm_status, get_storage_status, get_node_status, get_docker_containers,
+    get_trend_series, get_gpu_status, get_guest_trend, get_container_trend, get_recent_events,
+    ask, notify_ntfy,
+)
 
 app = FastAPI()
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -43,6 +47,39 @@ def health():
         "cpu_trend": trend["cpu"],
         "mem_trend": trend["mem"],
         "gpu": gpu,
+        "events": get_recent_events(24)[:15],
+    }
+
+
+@app.get("/api/entity")
+def entity(type: str, id: str, hours: int = 4):
+    if hours not in (4, 24, 168):
+        hours = 4
+    if type == "guest":
+        try:
+            vmid = int(id)
+        except ValueError:
+            raise HTTPException(status_code=404, detail="unknown guest")
+        match = next((v for v in list_vms() if v["vmid"] == vmid), None)
+        if match is None:
+            raise HTTPException(status_code=404, detail="unknown guest")
+        trend = get_guest_trend(vmid, match["type"], hours)
+        name, mem_unit = match["name"], "%"
+    elif type == "container":
+        trend = get_container_trend(id, hours)
+        if trend is None or (trend["cpu"] is None and trend["mem"] is None):
+            raise HTTPException(status_code=404, detail="unknown container")
+        name, mem_unit = id, "MB"
+    else:
+        raise HTTPException(status_code=400, detail="type must be 'guest' or 'container'")
+    return {
+        "type": type,
+        "id": id,
+        "name": name,
+        "hours": hours,
+        "cpu": {"series": trend["cpu"] or [], "unit": "%"},
+        "mem": {"series": trend["mem"] or [], "unit": mem_unit},
+        "events": get_recent_events(168, entity=name),
     }
 
 

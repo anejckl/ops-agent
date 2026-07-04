@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import os
+import re
 import subprocess
 import sys
 import time
@@ -221,6 +222,47 @@ def get_metric_trend(hours: int = 24):
 def get_trend_series(hours: int = 4, step_seconds: int = 300):
     """Raw CPU/mem trend series for docker-vm's host, for rendering a sparkline - not a chat tool, used by the dashboard's /api/health."""
     return {"cpu": _prom_series(CPU_QUERY, hours, step_seconds), "mem": _prom_series(MEM_QUERY, hours, step_seconds)}
+
+
+# step sizes chosen so every range renders as a sane number of sparkline points (~48-96)
+TREND_STEPS = {4: 300, 24: 900, 168: 7200}
+
+CONTAINER_NAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$")
+
+
+def _clamp_trend_hours(hours):
+    return hours if hours in TREND_STEPS else 4
+
+
+def get_guest_trend(vmid: int, guest_type: str, hours: int = 4):
+    """CPU%/mem% history for one VM or LXC from pve-exporter metrics - dashboard drill-down helper, not a chat tool."""
+    hours = _clamp_trend_hours(hours)
+    step = TREND_STEPS[hours]
+    pid = f"{'qemu' if guest_type == 'vm' else 'lxc'}/{int(vmid)}"
+    cpu = _prom_series(f'pve_cpu_usage_ratio{{id="{pid}"}} * 100', hours, step)
+    mem = _prom_series(f'100 * pve_memory_usage_bytes{{id="{pid}"}} / pve_memory_size_bytes{{id="{pid}"}}', hours, step)
+    return {"cpu": cpu, "mem": mem}
+
+
+def get_container_trend(name: str, hours: int = 4):
+    """CPU (% of one core, can exceed 100) / memory (MB - compose sets no limits, so % is meaningless) history for one Docker container from cAdvisor - dashboard drill-down helper, not a chat tool. Returns None for names that fail validation (guards PromQL label injection)."""
+    if not CONTAINER_NAME_RE.match(name or ""):
+        return None
+    hours = _clamp_trend_hours(hours)
+    step = TREND_STEPS[hours]
+    cpu = _prom_series(f'sum by (name) (rate(container_cpu_usage_seconds_total{{name="{name}"}}[5m])) * 100', hours, step)
+    mem = _prom_series(f'container_memory_working_set_bytes{{name="{name}"}} / 1048576', hours, step)
+    return {"cpu": cpu, "mem": mem}
+
+
+def get_recent_events(hours: int = 24, entity: str = None):
+    """State-change events as a plain newest-first list (possibly empty) - dashboard helper; get_health_history keeps its chat-oriented dict returns."""
+    events = get_health_history(hours)
+    if not isinstance(events, list):
+        return []
+    if entity:
+        events = [e for e in events if e["entity"] in (f"vm:{entity}", f"container:{entity}")]
+    return list(reversed(events))
 
 
 def get_gpu_status():
