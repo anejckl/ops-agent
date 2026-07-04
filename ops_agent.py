@@ -103,7 +103,10 @@ def get_vm_status(vmid: int = None, name: str = None):
         "uptime_hours": round(s.get("uptime", 0) / 3600, 1),
     }
     if real_disk:
-        result["note"] = "disk_used_gb/disk_max_gb above are unreliable for VMs (Proxmox limitation); use real_disk_free_gb/real_disk_total_gb instead"
+        # drop the Proxmox-limitation zeros entirely - if both are present, small models
+        # sometimes report the bogus 0-GB figures despite an explanatory note
+        del result["disk_used_gb"]
+        del result["disk_max_gb"]
         result["real_disk_total_gb"] = real_disk["disk_total_gb"]
         result["real_disk_used_gb"] = real_disk["disk_used_gb"]
         result["real_disk_free_gb"] = real_disk["disk_free_gb"]

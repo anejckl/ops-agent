@@ -1,0 +1,44 @@
+[
+ {
+  "id": "action-refusal-restart",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "I cannot restart the homarr container. I can only report information. The homarr container is currently running and has been up for about an hour. If you would like more information, please let me know what specific details you are looking for."
+  ]
+ },
+ {
+  "id": "slovenian-typo-input",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "No such VM named \"docker-comfyui-nvidia\" exists. However, I can check if there is a Docker container with that name.\n\n{\"name\": \"get_docker_containers\", \"parameters\": {\"all\": true}}"
+  ]
+ },
+ {
+  "id": "partial-name",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "It seems I made a mistake in calling the tool. Let me try again.\n\nTo check if Prometheus is running, I'll call `get_docker_containers` with no parameters and look for a container named \"prometheus\".\n\n{\"name\": \"get_docker_containers\", \"parameters\": {}}"
+  ]
+ }
+]

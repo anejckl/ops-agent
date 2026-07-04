@@ -1,0 +1,44 @@
+[
+ {
+  "id": "action-refusal-restart",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   []
+  ],
+  "replies": [
+   "I'm sorry, but I can't perform actions like restarting containers. I can only provide information about them. Is there anything specific you'd like to know about the 'homarr' container? For example, its current state or resource usage?"
+  ]
+ },
+ {
+  "id": "slovenian-typo-input",
+  "model": "qwen2.5:7b",
+  "passed": false,
+  "failures": [
+   "must_match failed: (?i)comfyui"
+  ],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "From the log information, the model loading and inference process is as follows:\n\n### Model Preparation Phase\n\n- **Timestamp**: `2026-07-04T15:18:41.258269888Z`\n  - `Model AutoencoderKL prepared for dynamic VRAM loading.` indicates that the AutoencoderKL model is ready for dynamic VRAM loading.\n  - `Prompt executed in 2.87 seconds` shows that the previous prompt took 2.87 seconds to execute.\n\n- **Timestamp**: `2026-07-04T15:19:08.929438119Z`\n  - `got prompt` indicates that a new prompt has been received.\n\n- **Timestamp**: `2026-07-04T15:19:08.964253373Z`\n  - `Model SD1ClipModel prepared for dynamic VRAM loading.` shows that the SD1ClipModel model is ready for dynamic VRAM loading.\n  - `Model BaseModel prepared for dynamic VRAM loading.` indicates that the BaseModel model is also ready for dynamic VRAM loading.\n\n### Model Initialization Phase\n\n- **Timestamp**: `2026-07-04T15:19:11.308525469Z`\n  - `Model Initializing ...` shows that the model is initializing.\n  - `Model Initialization complete!` indicates that the model initialization is complete.\n\n### Model Loading Progress Bar\n\n- **Timestamp**: `2026-07-04T15:19:11.308525469Z`\n  - The progress bar shows a loading process from 0% to 100%, indicating that all models have been successfully loaded.\n\n### Model Preparation Phase\n\n- **Timestamp**: `2026-07-04T15:19:11.461417210Z`\n  - `Model AutoencoderKL prepared for dynamic VRAM loading.` indicates that the AutoencoderKL model is again ready for dynamic VRAM loading.\n  \n- **Timestamp**: `2026-07-04T15:19:11.700659060Z`\n  - `Prompt executed in 2.77 seconds` shows that the current prompt took 2.77 seconds to execute.\n\n### Summary\n\nThe entire process includes model preparation, initialization, and loading, as well as handling new prompts. According to the logs, the model loading and inference are fast, and the dynamic VRAM management mechanism effectively reduces memory usage."
+  ]
+ },
+ {
+  "id": "partial-name",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "The Prometheus container is running. It has been up for about 8 hours and its health status is marked as 'none'."
+  ]
+ }
+]
