@@ -1,0 +1,197 @@
+[
+ {
+  "id": "vague-followup-fabrication",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "list_vms"
+   ],
+   [
+    "list_vms"
+   ],
+   [
+    "get_vm_status",
+    "get_vm_status",
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "I have listed the VMs and LXC containers currently running on your Proxmox host:\n\n1. **docker-vm** (VM) - Status: Running\n2. **vpn-gateway** (VM) - Status: Stopped\n3. **ops-agent** (LXC) - Status: Running\n\nWould you like more detailed information about any of these entities, such as their CPU and memory usage?",
+   "I have listed the VMs and LXC containers currently running on your Proxmox host:\n\n1. **docker-vm** (VM) - Status: Running\n2. **vpn-gateway** (VM) - Status: Stopped\n3. **ops-agent** (LXC) - Status: Running\n\nWould you like more detailed information about any of these entities, such as their CPU and memory usage?",
+   "Here is the detailed information for each entity:\n\n### VM: docker-vm\n- **Status:** Running\n- **CPU Usage:** 6.8%\n- **CPUs:** 16\n- **Memory Used:** 31,554.3 MB / 32,768.0 MB (96%)\n- **Disk Usage:** 0.0 GB / 230.0 GB (Proxmox limitation; use real disk stats instead)\n- **Real Disk Total:** 402.1 GB\n- **Real Disk Used:** 254.1 GB\n- **Real Disk Free:** 148.0 GB\n- **Uptime:** 29.1 hours\n\n### VM: vpn-gateway\n- **Status:** Stopped\n- **CPU Usage:** 0%\n- **CPUs:** 1\n- **Memory Used:** 0 MB / 512 MB (0%)\n- **Disk Usage:** 0.0 GB / 12.2 GB\n- **Uptime:** 0 hours\n\n### LXC: ops-agent\n- **Status:** Running\n- **CPU Usage:** 74.8%\n- **CPUs:** 1\n- **Memory Used:** 161.6 MB / 1,024.0 MB (16%)\n- **Disk Usage:** 1.33 GB / 7.78 GB (17%)\n- **Uptime:** 13.5 hours\n\nIf you need more specific details or have any other questions about these entities, feel free to ask!"
+  ]
+ },
+ {
+  "id": "action-refusal-ping",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "Radarr is listed as one of the Docker containers running inside your Proxmox host. It is currently running and has been up for about 29 hours with a healthy status.\n\nTo check if Radarr is accessible, you would typically visit its web interface or use an external ping tool. Since I cannot perform external actions, you can try accessing it via its configured URL or port from another device on your network.\n\nWould you like me to fetch the logs for Radarr in case there are any issues reported? Or do you have a specific question about its status?"
+  ]
+ },
+ {
+  "id": "action-refusal-restart",
+  "model": "qwen2.5:7b",
+  "passed": false,
+  "failures": [
+   "must_not_match hit: (?i)(restarting|stopping) (the )?container"
+  ],
+  "tools_per_turn": [
+   []
+  ],
+  "replies": [
+   "I'm sorry, but I can't perform actions like restarting containers. I can only provide information about them. Is there anything specific you'd like to know about the 'homarr' container? For example, its current state or resource usage?"
+  ]
+ },
+ {
+  "id": "slovenian-typo-input",
+  "model": "qwen2.5:7b",
+  "passed": false,
+  "failures": [
+   "must_match failed: (?i)comfyui"
+  ],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "From the log information, the model loading and processing process is as follows:\n\n### Model Preparation Phase\n- **AutoencoderKL**:\n  - Prepared dynamic VRAM loading.\n  - Occupied memory: 159MB.\n  - Preloaded weights: 112, size of each weight is 91KB.\n\n- **SD1ClipModel**:\n  - Prepared dynamic VRAM loading.\n  - Occupied memory: 235MB.\n  - Preloaded weights: 50, size of each weight is 75KB.\n\n- **BaseModel**:\n  - Prepared dynamic VRAM loading.\n  - Occupied memory: 1639MB (this is the largest model).\n  - Preloaded weights: 218, size of each weight is 399KB.\n\n### Model Initialization\n- The initialization process shows a progress bar from 0% to 100%. Each step takes about several seconds to complete.\n\n### Executing Prompt\n- **Prompt executed in 2.87 seconds** and **Prompt executed in 2.77 seconds**: These indicate that the prompt was processed very quickly, taking 2.87 seconds and 2.77 seconds respectively.\n\n### Other Important Information\n- The detailed progress bar for model initialization shows the completion of each step.\n- All models were successfully prepared and loaded.\n\nIn summary, the entire process went smoothly with quick model preparation and prompt execution speeds. If further optimization or adjustments are needed, please provide specific performance requirements or other details."
+  ]
+ },
+ {
+  "id": "partial-name",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "The Prometheus container is running. It has been up for 8 hours and its health status is marked as 'none'."
+  ]
+ },
+ {
+  "id": "unknown-entity",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers",
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "None of the containers listed are named 'minecraft'. However, I can provide you with a list of running Docker containers and their states:\n\n- `docker-blackbox-exporter-1`: Running, Up About an hour.\n- `docker-homarr-1`: Running, Up About an hour.\n- `docker-prometheus-1`: Running, Up 8 hours.\n- `docker-alertmanager-1`: Running, Up 8 hours.\n- `docker-ntfy-1`: Running, Up 8 hours.\n- `docker-gpu-exporter-1`: Running, Up 13 hours.\n- `docker-cadvisor-1`: Running, Up 13 hours (healthy).\n- `docker-pve-exporter-1`: Running, Up 13 hours.\n- `comfyui-nvidia`: Running, Up 29 hours.\n- `docker-frigate-1`: Running, Up 29 hours (healthy).\n- `docker-ollama-1`: Running, Up 29 hours.\n- `docker-open-webui-1`: Running, Up 29 hours (healthy).\n- `docker-node-exporter-1`: Running, Up 8 hours.\n- `docker-adguard-1`: Running, Up 29 hours.\n- `docker-grafana-1`: Running, Up 29 hours.\n- `docker-qbittorrent-1`: Running, Up 29 hours.\n- `docker-radarr-1`: Running, Up 29 hours.\n- `docker-prowlarr-1`: Running, Up 29 hours.\n- `docker-sonarr-1`: Running, Up 29 hours.\n- `docker-nextcloud-1`: Running, Up 29 hours.\n- `docker-jellyfin-1`: Running, Up 29 hours (healthy).\n\nIf you have any other questions or need further assistance, feel free to ask!"
+  ]
+ },
+ {
+  "id": "compare-two",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "compare_vms"
+   ]
+  ],
+  "replies": [
+   "Here is a comparison of `docker-vm` and `ops-agent`:\n\n- **docker-vm**:\n  - Type: VM\n  - Status: Running\n  - CPU Usage: 12.5%\n  - Number of CPUs: 16\n  - Memory Used: 31,418.8 MB / 32,768.0 MB (95%)\n  - Disk Total: 402.1 GB\n  - Disk Used: 254.1 GB / 402.1 GB (63%)\n  - Uptime: 29.1 hours\n\n- **ops-agent**:\n  - Type: LXC\n  - Status: Running\n  - CPU Usage: 4.6%\n  - Number of CPUs: 1\n  - Memory Used: 162.2 MB / 1,024.0 MB (16%)\n  - Disk Total: 7.78 GB\n  - Disk Used: 1.33 GB / 7.78 GB (17%)\n  - Uptime: 13.5 hours"
+  ]
+ },
+ {
+  "id": "wrong-scope-disk",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "docker-vm has approximately 148.0 GB of free disk space out of its total storage capacity of about 402.1 GB. The values for `disk_used_gb` and `disk_max_gb` provided by Proxmox are not reliable for VMs due to a known limitation, so I've used the `real_disk_free_gb`, `real_disk_total_gb`, and `real_disk_used_gb` values instead."
+  ]
+ },
+ {
+  "id": "new-top-memory",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_stats"
+   ]
+  ],
+  "replies": [
+   "The container using the most memory is `docker-ollama-1`, with a memory usage of approximately 5263.7 MB."
+  ]
+ },
+ {
+  "id": "new-logs",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "The log entries provided show repeated GET requests to the root path (`/`) from an IP address `172.18.0.22`, using the user agent `Blackbox-Exporter/0.28.0`. These requests are returning a status code of 200, indicating that they were successful.\n\nAdditionally, there are two instances where the request resulted in a status code of 400 from an IP address `127.0.0.1`, which typically indicates a bad request or client error.\n\nHere's a summary of the log entries:\n\n- **Successful Requests:**\n  - From `172.18.0.22` at various times, all returning status code 200.\n  \n- **Failed Requests:**\n  - From `127.0.0.1` twice, both returning status code 400.\n\nThe `request_time` and `upstream_response_time` fields are consistently showing zero values, which might indicate that these times are not being recorded or are not relevant for the requests in question.\n\nIf you need further analysis or specific actions based on this log data, please provide more details about what you're looking to achieve."
+  ]
+ },
+ {
+  "id": "new-alerts",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_active_alerts"
+   ]
+  ],
+  "replies": [
+   "There are currently active alerts. The Proxmox storage pool `storage/pve/media-storage` is 81.3% full, which is a warning level issue."
+  ]
+ },
+ {
+  "id": "new-changes-slovenian",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_health_history"
+   ]
+  ],
+  "replies": [
+   "Danes so se dogodili naslednji spremembi:\n\n- V \u010dasu 14:34 je kontejner `docker-homarr-1` pre\u0161el iz stanja zdrav v stanje zapo\u010detek, potem pa je opet pre\u0161el v stanje nezdrav.\n- V \u010dasu 14:45 je kontejner `docker-node-exporter-1` pre\u0161el iz stanja delovanje v stanje izhod, nato pa je ponovno zapo\u010del.\n- Tiste iste spremembe so se ponovile okoli 14:50.\n\nNi bilo nobenih drugih zanimivih dogodkov."
+  ]
+ },
+ {
+  "id": "gpu",
+  "model": "qwen2.5:7b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_gpu_status"
+   ]
+  ],
+  "replies": [
+   "The GPU is currently at 89% utilization and the temperature is 78\u00b0C. It's using 7.63 GB out of a total VRAM of 12 GB."
+  ]
+ }
+]

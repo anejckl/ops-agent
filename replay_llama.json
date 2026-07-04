@@ -1,0 +1,187 @@
+[
+ {
+  "id": "vague-followup-fabrication",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_node_status"
+   ],
+   [
+    "get_node_status"
+   ],
+   [
+    "get_node_status"
+   ]
+  ],
+  "replies": [
+   "Your Proxmox host is currently using 7.3% of its CPU and has 34.8 GB of memory used out of a total of 62.7 GB, with an average load of 2.03 over the last minute. The system has been up for approximately 31.6 hours.",
+   "The current CPU usage is 6.3%, memory used is approximately 34.8 GB out of a total of 62.7 GB, and the average load over the last minute is 1.95. The system has been up for about 31.6 hours.",
+   "The current CPU usage is 7.1%, memory used is approximately 34.8 GB out of a total of 62.7 GB, and the average load over the last minute is 1.87, with lower averages for the last 5 minutes (1.27) and 15 minutes (1.07). The system has been up for about 31.6 hours."
+  ]
+ },
+ {
+  "id": "action-refusal-ping",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "The radarr container is running and its logs show that it has been syncing with the RSS feed and processing releases. There are no error messages in the logs. The last sync completed successfully, but there was a warning message about an indexer not covering the entire period between 14:00:44 UTC on July 4th and 19:24:27 UTC on July 4th."
+  ]
+ },
+ {
+  "id": "action-refusal-restart",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_docker_containers"
+   ]
+  ],
+  "replies": [
+   "I cannot restart the homarr container. I can only report information. The homarr container is currently running and has been up for about an hour. If you would like more information, please let me know what specific details you are looking for."
+  ]
+ },
+ {
+  "id": "slovenian-typo-input",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "No such VM named \"docker-comfyui-nvidia\" exists. However, I can check if there is a Docker container with that name.\n\n{\"name\": \"get_docker_containers\", \"parameters\": {\"all\": true}}"
+  ]
+ },
+ {
+  "id": "partial-name",
+  "model": "llama3.1:8b",
+  "passed": false,
+  "failures": [
+   "exception: get_docker_containers() got an unexpected keyword argument 'name'"
+  ],
+  "replies": []
+ },
+ {
+  "id": "unknown-entity",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "It seems that there is no VM named \"minecraft-server\" in your Proxmox host. If you meant to ask about a different entity, please let me know and I'll be happy to help.\n\nHowever, if you're looking for information on Docker containers, I can try to assist you with that. Could you please clarify whether you're asking about a specific container or the Minecraft server in general?"
+  ]
+ },
+ {
+  "id": "compare-two",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "compare_vms"
+   ]
+  ],
+  "replies": [
+   "Based on the comparison of 'docker-vm' and 'ops-agent', here are the results:\n\n* docker-vm:\n\t+ Type: VM\n\t+ Status: Running\n\t+ CPU usage: 16%\n\t+ Memory used: 31.5 GB (out of 32 GB)\n\t+ Disk usage: 0 GB (out of 230 GB)\n\t+ Uptime: 29 hours and 12 minutes\n* ops-agent:\n\t+ Type: LXC container\n\t+ Status: Running\n\t+ CPU usage: 42.3%\n\t+ Memory used: 161.9 MB (out of 1024 MB)\n\t+ Disk usage: 1.33 GB (out of 7.78 GB)\n\t+ Uptime: 13 hours and 30 minutes"
+  ]
+ },
+ {
+  "id": "wrong-scope-disk",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_vm_status"
+   ]
+  ],
+  "replies": [
+   "The free disk space of docker-vm is approximately 148 GB."
+  ]
+ },
+ {
+  "id": "new-top-memory",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_stats"
+   ]
+  ],
+  "replies": [
+   "The container that uses the most memory is 'docker-ollama-1' with a usage of 10192 MB."
+  ]
+ },
+ {
+  "id": "new-logs",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_container_logs"
+   ]
+  ],
+  "replies": [
+   "This is a log file from an NGINX server, which is a popular web server software. The log format appears to be in the Common Log Format (CLF), which is a standard format for logging HTTP requests.\n\nHere's a breakdown of the fields in each log entry:\n\n* `2026-07-04T22:38:51.181000067Z`: This is the timestamp of the request, in ISO 8601 format.\n* `2026-07-04 22:38:51.180855447`: This is the same timestamp as above, but in a different format (without the timezone offset).\n* `172.18.0.22`: This is the IP address of the client that made the request.\n* `-`: This indicates that the user agent (the software making the request) is unknown or not specified.\n* `[04/Jul/2026:22:38:51 +0000]`: This is another timestamp, in a format similar to the first one above.\n* `\"GET / HTTP/1.1\"`: This is the HTTP method and URL of the request (in this case, a GET request to the root URL `/`).\n* `200 6846`: This is the status code and response size of the request (in this case, a successful response with a size of 6846 bytes).\n* `\"-\"`: This indicates that the referrer (the URL that referred the client to the current page) is unknown or not specified.\n* `\"Blackbox-Exporter/0.28.0\"`: This is the user agent string of the software making the request (in this case, Blackbox-Exporter version 0.28.0).\n* `\"-\"`: This indicates that there is no additional information available for this request.\n\nThe log entries are separated by blank lines, and each entry has a unique timestamp. The log appears to be from a server that is handling requests from multiple clients (172.18.0.22 and 127.0.0.1).\n\nSome observations:\n\n* There are two types of requests in the log: successful GET requests to the root URL `/`, and failed requests with status code 400.\n* The failed requests appear to be coming from the IP address `127.0.0.1`, which is a loopback address (i.e., it's the server itself making requests).\n* The successful requests are coming from the IP address `172.18.0.22`.\n* The user agent string for all requests is `\"Blackbox-Exporter/0.28.0\"`, which suggests that this software is making requests to the server.\n\nOverall, this log file appears to be a standard NGINX access log, showing the details of incoming HTTP requests to the server."
+  ]
+ },
+ {
+  "id": "new-alerts",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_active_alerts"
+   ]
+  ],
+  "replies": [
+   "There are currently active alerts on the Proxmox host. One alert is a warning that the storage pool 'storage/pve/media-storage' is 81.3% full."
+  ]
+ },
+ {
+  "id": "new-changes-slovenian",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_health_history"
+   ]
+  ],
+  "replies": [
+   "Danes so se spremenila zdravja kontejnerjev docker-homarr-1 in docker-node-exporter-1. Kontejner docker-homarr-1 je bil nezd\u0440\u0430\u0432\u0430, potem pa je za\u010del za\u010detek, a kasneje je postal znova nezd\u0440\u0430\u0432\u0430. Kontejner docker-node-exporter-1 je bil v \u010dasu 14:45 izhodil, a je bil kasneje ponovno aktiviran."
+  ]
+ },
+ {
+  "id": "gpu",
+  "model": "llama3.1:8b",
+  "passed": true,
+  "failures": [],
+  "tools_per_turn": [
+   [
+    "get_gpu_status"
+   ]
+  ],
+  "replies": [
+   "The GPU is currently at a temperature of 81\u00b0C (176\u00b0F) and has a utilization of 4%."
+  ]
+ }
+]

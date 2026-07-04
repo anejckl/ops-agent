@@ -11,7 +11,7 @@ PROXMOX_HOST = "192.168.1.77"
 PROXMOX_TOKEN = "REDACTED_TOKEN"
 PROXMOX_NODE = "pve"
 OLLAMA_URL = "http://192.168.1.136:11434/api/chat"
-MODEL = "qwen2.5:7b"
+MODEL = os.environ.get("OPS_MODEL", "qwen2.5:7b")
 DOCKER_VM_HOST = "192.168.1.136"
 DOCKER_RO_KEY = "/root/.ssh/docker_ro_key"
 DOCKER_LOGS_KEY = "/root/.ssh/docker_logs_key"
@@ -490,7 +490,9 @@ SYSTEM_PROMPT = (
     "Tool scope quick-map: alerts firing right now -> get_active_alerts; past state changes -> get_health_history; container "
     "CPU/RAM usage numbers -> get_container_stats; container running/health state -> get_docker_containers; container log "
     "lines -> get_container_logs; a named VM/LXC's own CPU/RAM/disk -> get_vm_status (resolve the vmid via list_vms first); "
-    "the physical Proxmox host overall -> get_node_status; shared storage pools -> get_storage_status. "
+    "the physical Proxmox host overall -> get_node_status; shared storage pools -> get_storage_status; requests to "
+    "restart/stop/start/fix/change anything -> NO tool, first state plainly that you cannot perform actions and can only "
+    "report information (you may then offer relevant read-only info). "
     "IMPORTANT: You must ALWAYS respond in English, no matter what language the question was asked in. The user may write to you in Slovenian or other languages - understand it, but always reply in English. "
     "Do not output any Chinese characters (Hanzi) under any circumstances - respond only in plain English text. "
     "Be concise."
@@ -498,6 +500,14 @@ SYSTEM_PROMPT = (
 
 
 MAX_HISTORY_TURNS = 1  # (user, assistant) pairs kept - trimmed hard because this model stops calling tools and starts confabulating once it can see several of its own past answers in context
+
+HANZI_RE = re.compile(r"[一-鿿]")
+ENGLISH_REWRITE_NUDGE = "Your answer contained Chinese characters. Rewrite your ENTIRE answer in plain English only, keeping all the same facts and numbers."
+
+
+def _needs_english_rewrite(content):
+    """qwen2.5 code-switches into Chinese mid-answer (esp. when summarizing log text); the prompt ban alone is not reliable, so enforce it in code."""
+    return bool(content) and bool(HANZI_RE.search(content))
 
 
 def ask(question, history=None):
@@ -522,6 +532,10 @@ def ask(question, history=None):
                 messages.append({"role": "user", "content": "Do not answer from memory. Call the most relevant tool(s) first to get fresh, verified data, then answer using only those results."})
                 nudged = True
                 continue
+            if _needs_english_rewrite(content):
+                messages.append({"role": "user", "content": ENGLISH_REWRITE_NUDGE})
+                resp = requests.post(OLLAMA_URL, json={"model": MODEL, "messages": messages, "stream": False, "options": {"temperature": 0.1}}, timeout=60).json()
+                content = resp["message"].get("content") or content
             new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": content}]
             return content, new_history
         tools_called = True
@@ -530,7 +544,15 @@ def ask(question, history=None):
             args = call["function"]["arguments"]
             if isinstance(args, str):
                 args = json.loads(args)
-            result = TOOLS[fn_name](**args)
+            # models sometimes hallucinate argument names or tool names - surface it as data, never a 500
+            try:
+                result = TOOLS[fn_name](**args)
+            except KeyError:
+                result = {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
+            except TypeError as e:
+                result = {"error": f"Invalid arguments for {fn_name}: {e}"}
+            except Exception as e:
+                result = {"error": f"tool {fn_name} failed: {e}"}
             messages.append({"role": "tool", "content": json.dumps(result)})
 
     # exhausted the tool-call budget without a final answer - force one plain reply instead of leaking an internal error
@@ -591,6 +613,10 @@ def ask_stream(question, history=None):
                     yield ("status", fn_name)
                     try:
                         result = TOOLS[fn_name](**args)
+                    except KeyError:
+                        result = {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
+                    except TypeError as e:
+                        result = {"error": f"Invalid arguments for {fn_name}: {e}"}
                     except Exception as e:
                         result = {"error": f"tool {fn_name} failed: {e}"}
                     messages.append({"role": "tool", "content": json.dumps(result)})
@@ -602,6 +628,19 @@ def ask_stream(question, history=None):
                 messages.append({"role": "user", "content": "Do not answer from memory. Call the most relevant tool(s) first to get fresh, verified data, then answer using only those results."})
                 nudged = True
                 continue
+            if _needs_english_rewrite(content):
+                yield ("reset", None)
+                messages.append({"role": "assistant", "content": content})
+                messages.append({"role": "user", "content": ENGLISH_REWRITE_NUDGE})
+                parts = []
+                for chunk in _ollama_stream({"model": MODEL, "messages": messages, "stream": True, "options": {"temperature": 0.1}}):
+                    m = chunk.get("message", {})
+                    if m.get("content"):
+                        parts.append(m["content"])
+                        yield ("token", m["content"])
+                    if chunk.get("done"):
+                        break
+                content = "".join(parts) or content
             new_history = (history or []) + [{"role": "user", "content": question}, {"role": "assistant", "content": content}]
             yield ("done", {"reply": content, "history": new_history})
             return

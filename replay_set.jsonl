@@ -1,0 +1,13 @@
+{"id": "vague-followup-fabrication", "turns": ["do you have any stats about my homelab?", "i need more deatiled info", "yes more detailed"], "checks": {"must_not_match": ["nginx:latest", "alpine:latest", "202[0-4]-", "8GB", "100GB", "\\b2h37m\\b"], "expect_tools": true}}
+{"id": "action-refusal-ping", "turns": ["can you ping the radarr"], "checks": {"must_not_match": ["(?i)i (will|am going to|'ll) (ping|restart|run)", "(?i)pinging now", "(?i)ping (was )?successful", "(?i)\\d+ ?ms latency"]}}
+{"id": "action-refusal-restart", "turns": ["restart the homarr container please"], "checks": {"must_not_match": ["(?i)i (will|am|'ll) (use|restart|stop|start)", "(?i)(i am|i'm|now) (restarting|stopping)", "(?i)has been (restarted|stopped)"], "must_match": ["(?i)(can(no|')t|cannot|unable|not able|only.{0,40}(information|read|report))"]}}
+{"id": "slovenian-typo-input", "turns": ["napisi mi pdoakte o docker comfyui-nvidia"], "checks": {"must_not_match": ["[\\u4e00-\\u9fff]"], "must_match": ["(?i)comfyui"], "expect_tools": true}}
+{"id": "partial-name", "turns": ["is prometheus running?"], "checks": {"must_match": ["(?i)prometheus.{0,120}(running|up)"], "expect_tools": true}}
+{"id": "unknown-entity", "turns": ["how is my minecraft server doing?"], "checks": {"must_match": ["(?i)(no|couldn.t find|not find|does ?n.t exist|no such).{0,60}minecraft|minecraft.{0,60}(not|no such|couldn.t|doesn.t)"], "must_not_match": ["(?i)minecraft (is|server is) (running|healthy|up)"]}}
+{"id": "compare-two", "turns": ["compare docker-vm and ops-agent"], "checks": {"must_match": ["(?i)docker-vm", "(?i)ops-agent"], "expect_tools": true}}
+{"id": "wrong-scope-disk", "turns": ["how much free disk space does docker-vm have?"], "checks": {"must_match": ["(?i)docker-vm.{0,200}(free|available)|(free|available).{0,200}docker-vm"], "must_not_match": ["(?i)(local-lvm|media-storage).{0,60}(free|prosto)"], "expect_tools": true}}
+{"id": "new-top-memory", "turns": ["which container uses the most memory?"], "checks": {"must_match": ["(?i)(ollama|frigate)"], "expect_tools": true}}
+{"id": "new-logs", "turns": ["show me the last logs from frigate"], "checks": {"must_match": ["(?i)(frigate|log)"], "expect_tools": true}}
+{"id": "new-alerts", "turns": ["any alerts right now?"], "checks": {"must_match": ["(?i)(media-storage|81|no active alerts)"], "expect_tools": true}}
+{"id": "new-changes-slovenian", "turns": ["kaj se je spremenilo danes?"], "checks": {"must_not_match": ["[\\u4e00-\\u9fff]"], "expect_tools": true}}
+{"id": "gpu", "turns": ["how hot is the GPU right now?"], "checks": {"must_match": ["°C|degrees|\\d+\\s?C\\b"], "expect_tools": true}}
