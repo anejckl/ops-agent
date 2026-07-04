@@ -76,6 +76,24 @@ def get_vm_status(vmid: int = None, name: str = None):
         vms = list_vms()
         match = next((v for v in vms if v["name"] == name), None) or next((v for v in vms if name.lower() in v["name"].lower()), None)
         if not match:
+            # explicit per-result redirect: a 7B model reliably follows "call X now", but not a generic hint
+            try:
+                containers = get_docker_containers()
+                centry = next((c for c in containers if name.lower() in c["name"].lower()), None) if isinstance(containers, list) else None
+            except Exception:
+                centry = None
+            if centry:
+                # do the redirect hop IN PYTHON: asking the model to make a second call after an error
+                # makes it print the tool call as text instead of executing it (verified failure mode)
+                return {
+                    "name": centry["name"],
+                    "type": "container",
+                    "note": f"'{name}' is not a Proxmox VM/LXC - it is the Docker container '{centry['name']}' inside docker-vm. Its actual current data is included here; answer directly from it.",
+                    "state": centry.get("state"),
+                    "status": centry.get("status"),
+                    "health": centry.get("health"),
+                    "image": centry.get("image"),
+                }
             return {"error": f"No VM/LXC named '{name}' exists. Available VM/LXC names: {[v['name'] for v in vms]}. Note: Docker containers (frigate, jellyfin, ollama, etc.) are NOT Proxmox VMs - use get_docker_containers for those."}
         vmid = match["vmid"]
     try:
@@ -154,8 +172,8 @@ def get_node_status():
     }
 
 
-def get_docker_containers():
-    """List all Docker containers running inside docker-vm (Proxmox VM 100) with name, image, running state, health, and uptime. Frigate, Ollama, ComfyUI, Jellyfin, Nextcloud, Radarr, Sonarr, etc. are all Docker containers inside this one VM, not separate Proxmox VMs/LXCs - use this tool (not get_vm_status) to check on any of them specifically."""
+def get_docker_containers(name: str = None):
+    """List Docker containers running inside docker-vm (Proxmox VM 100) with name, image, running state, health, and uptime. Frigate, Ollama, ComfyUI, Jellyfin, Nextcloud, Radarr, Sonarr, etc. are all Docker containers inside this one VM, not separate Proxmox VMs/LXCs - use this tool (not get_vm_status) to check on any of them. IMPORTANT: when the user asks about ONE specific container by name (e.g. 'is prometheus running?'), pass name='prometheus' (partial names are fine, matching is done reliably in code) to get exactly that container or a clear not-found answer. Only call with no arguments when the user wants an overview of everything."""
     try:
         result = subprocess.run(
             ["ssh", "-i", DOCKER_RO_KEY, "-o", "StrictHostKeyChecking=accept-new", "-o", "ConnectTimeout=5", f"docker@{DOCKER_VM_HOST}"],
@@ -177,6 +195,11 @@ def get_docker_containers():
             "status": c.get("Status"),
             "health": c.get("HealthStatus"),
         })
+    if name:
+        matches = [c for c in containers if name.lower() in c["name"].lower() or _short_name(c["name"]) in name.lower()]
+        if not matches:
+            return {"error": f"No Docker container matching '{name}' exists on docker-vm. Tell the user plainly that it was not found. Real container names: {[c['name'] for c in containers]}"}
+        return matches[0] if len(matches) == 1 else matches
     return containers
 
 
@@ -680,7 +703,7 @@ TOOL_SCHEMAS = [
     {"type": "function", "function": {"name": "compare_vms", "description": compare_vms.__doc__, "parameters": {"type": "object", "properties": {"names": {"type": "array", "items": {"type": "string"}, "description": "The VM/LXC names to compare, e.g. ['docker-vm', 'ops-agent']"}}, "required": ["names"]}}},
     {"type": "function", "function": {"name": "get_storage_status", "description": get_storage_status.__doc__, "parameters": {"type": "object", "properties": {}}}},
     {"type": "function", "function": {"name": "get_node_status", "description": get_node_status.__doc__, "parameters": {"type": "object", "properties": {}}}},
-    {"type": "function", "function": {"name": "get_docker_containers", "description": get_docker_containers.__doc__, "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {"name": "get_docker_containers", "description": get_docker_containers.__doc__, "parameters": {"type": "object", "properties": {"name": {"type": "string", "description": "Optional: one container's name (partial ok, e.g. 'prometheus'). Strongly preferred when the user asks about a specific container."}}}}},
     {"type": "function", "function": {"name": "get_metric_trend", "description": get_metric_trend.__doc__, "parameters": {"type": "object", "properties": {"hours": {"type": "integer", "description": "How many hours back to look, e.g. 24 for a day, 168 for a week"}}}}},
     {"type": "function", "function": {"name": "get_health_history", "description": get_health_history.__doc__, "parameters": {"type": "object", "properties": {"hours": {"type": "integer", "description": "How many hours back to look"}}}}},
     {"type": "function", "function": {"name": "get_gpu_status", "description": get_gpu_status.__doc__, "parameters": {"type": "object", "properties": {}}}},
@@ -758,6 +781,7 @@ _ENTITY_SOURCES = {
     "compare_vms": lambda r: [(x["name"], x.get("type", "vm")) for x in r if isinstance(x, dict) and x.get("name")] if isinstance(r, list) else [],
     "get_container_stats": lambda r: [(r["name"], "container")] if isinstance(r, dict) and r.get("name") else [],
     "get_container_logs": lambda r: [(r["container"], "container")] if isinstance(r, dict) and r.get("container") else [],
+    "get_docker_containers": lambda r: [(r["name"], "container")] if isinstance(r, dict) and r.get("name") else [],
     "diagnose": lambda r: [(r["entity"], r.get("entity_type", "container"))] if isinstance(r, dict) and r.get("entity") else [],
 }
 
@@ -828,21 +852,34 @@ def _exec_tool(fn_name, args, turn_info):
     """Single tool dispatch point shared by ask() and ask_stream(): error-dict guardrails + deterministic
     entity extraction. turn_info = {"entities": [], "candidates": []}. Dispatches via TOOLS at call time
     (replay_eval wraps TOOLS to record calls)."""
+    # repeated-identical-call breaker: without this the model can burn its whole iteration budget
+    # re-calling the same tool when the answer it wants simply isn't in the result. IMPORTANT: return the
+    # cached DATA again, not just an instruction - told only "the result is above", this model does not
+    # look back up, it fabricates a plausible answer instead (verified failure mode).
+    seen = turn_info.setdefault("calls", {})
+    call_key = f"{fn_name}:{json.dumps(args, sort_keys=True)}"
+    if call_key in seen:
+        return {
+            "note": f"This is the SAME result as your previous {fn_name} call - calling it again cannot produce anything new. Answer ONLY the user's specific question from this data now - do NOT summarize the whole list. If the specific thing they asked about is not in this data, it does not exist: say that plainly, listing a few real names as alternatives.",
+            "data": seen[call_key],
+        }
     try:
         result = TOOLS[fn_name](**args)
     except KeyError:
-        return {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
+        result = {"error": f"No tool named '{fn_name}' exists. Available tools: {list(TOOLS.keys())}"}
     except TypeError as e:
-        return {"error": f"Invalid arguments for {fn_name}: {e}"}
+        result = {"error": f"Invalid arguments for {fn_name}: {e}"}
     except Exception as e:
-        return {"error": f"tool {fn_name} failed: {e}"}
-    for sources, key in ((_ENTITY_SOURCES, "entities"), (_CANDIDATE_SOURCES, "candidates")):
-        extractor = sources.get(fn_name)
-        if extractor:
-            try:
-                turn_info[key].extend(extractor(result))
-            except (KeyError, TypeError):
-                pass
+        result = {"error": f"tool {fn_name} failed: {e}"}
+    else:
+        for sources, key in ((_ENTITY_SOURCES, "entities"), (_CANDIDATE_SOURCES, "candidates")):
+            extractor = sources.get(fn_name)
+            if extractor:
+                try:
+                    turn_info[key].extend(extractor(result))
+                except (KeyError, TypeError):
+                    pass
+    seen[call_key] = result
     return result
 
 HANZI_RE = re.compile(r"[一-鿿]")
