@@ -1,0 +1,4 @@
+__pycache__/
+chat.log
+health_history.jsonl
+health_state.json

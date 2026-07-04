@@ -1,0 +1,443 @@
+<!doctype html>
+<html lang="sl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Homelab</title>
+<link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<link rel="icon" href="/icons/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0b0b0d">
+<style>
+  :root {
+    --page:        #0b0b0d;
+    --surface:     #17171a;
+    --surface-2:   #1e1e22;
+    --ink-1:       #f5f5f4;
+    --ink-2:       #b6b5c0;
+    --ink-muted:   #85838f;
+    --border:      rgba(255,255,255,0.08);
+    --gridline:    rgba(255,255,255,0.06);
+    --blue:        #5b8def;
+    --blue-dim:    #4370c4;
+    --blue-track:  rgba(91,141,239,0.14);
+    --good:        #17c17a;
+    --warning:     #f0a93b;
+    --serious:     #f0895e;
+    --critical:    #ef6a6a;
+    --shadow:      0 1px 2px rgba(0,0,0,.35), 0 8px 24px -8px rgba(0,0,0,.55);
+    --r-card: 16px; --r-row: 10px; --r-pill: 999px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; font-family: -apple-system, system-ui, "Segoe UI", Roboto, sans-serif;
+    background: var(--page); color: var(--ink-1);
+    display: flex; flex-direction: column; height: 100dvh;
+    -webkit-font-smoothing: antialiased;
+  }
+  svg.icon { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+
+  header {
+    padding: calc(16px + env(safe-area-inset-top)) 20px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .brand { display: flex; align-items: center; gap: 8px; }
+  .brand .mark { width: 20px; height: 20px; flex: none; }
+  .brand .mark path { fill: var(--blue); }
+  header h1 { font-size: 16px; margin: 0; font-weight: 600; letter-spacing: -.01em; }
+  .live { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-muted); font-variant-numeric: tabular-nums; }
+  .live .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--good); box-shadow: 0 0 0 3px rgba(23,193,122,0.16); }
+
+  #dash { overflow-y: auto; padding: 0 16px 8px; flex: 1 1 auto; -webkit-overflow-scrolling: touch; }
+
+  .card {
+    background: var(--surface); border-radius: var(--r-card); padding: 18px;
+    margin-bottom: 12px; border: 1px solid var(--border); box-shadow: var(--shadow);
+  }
+
+  /* mobile-only app: wider screens get a plain notice instead of a stretched layout */
+  #desktop-notice { display: none; }
+  @media (min-width: 700px) {
+    header, #dash, #chat { display: none; }
+    #desktop-notice {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; height: 100%; text-align: center; padding: 20px; color: var(--ink-2);
+    }
+    #desktop-notice svg { width: 32px; height: 32px; color: var(--ink-muted); }
+    #desktop-notice .t1 { font-size: 15px; font-weight: 600; color: var(--ink-1); }
+    #desktop-notice .t2 { font-size: 13px; color: var(--ink-muted); max-width: 320px; }
+  }
+  .card h2 {
+    font-size: 11px; margin: 0 0 16px; color: var(--ink-muted); font-weight: 600;
+    text-transform: uppercase; letter-spacing: .07em; display: flex; align-items: center; gap: 6px;
+  }
+
+  /* stat tiles: 2-up grid, icon + big light number + label */
+  .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .tile-head { display: flex; align-items: center; gap: 6px; color: var(--ink-muted); font-size: 12px; margin-bottom: 8px; }
+  .tile-value { font-size: 26px; font-weight: 300; letter-spacing: -.02em; margin-bottom: 10px; }
+  .tile-value .unit { font-size: 13px; font-weight: 400; color: var(--ink-muted); margin-left: 2px; }
+  .tile-sub { font-size: 11px; color: var(--ink-muted); margin-top: 16px; }
+
+  /* storage rows */
+  .stat-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+  .stat-row .label { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--ink-2); }
+  .stat-row .label svg.icon { color: var(--ink-muted); }
+  .stat-row .value { font-size: 13px; font-weight: 500; color: var(--ink-1); }
+  .stat-row .value .unit { font-weight: 400; color: var(--ink-muted); }
+
+  /* meter */
+  .meter { height: 5px; border-radius: 3px; background: var(--blue-track); overflow: hidden; margin-bottom: 16px; }
+  .meter:last-child { margin-bottom: 0; }
+  .meter > div { height: 100%; border-radius: 3px; background: var(--blue); transition: width .4s ease; }
+  .meter.warning { background: rgba(240,169,59,0.15); }
+  .meter.warning > div { background: var(--warning); }
+  .meter.critical { background: rgba(239,106,106,0.15); }
+  .meter.critical > div { background: var(--critical); }
+
+  /* status badge: icon + label, never color alone — quiet, part of the system */
+  .status { display: inline-flex; align-items: center; gap: 5px; font-size: 10.5px; font-weight: 600; padding: 3px 8px 3px 6px; border-radius: var(--r-pill); white-space: nowrap; letter-spacing: .01em; }
+  .status .dot { width: 5px; height: 5px; border-radius: 50%; flex: none; }
+  .status.good { background: rgba(23,193,122,0.10); color: #6fdca0; }
+  .status.good .dot { background: var(--good); }
+  .status.warning { background: rgba(240,169,59,0.10); color: #f5c579; }
+  .status.warning .dot { background: var(--warning); }
+  .status.critical { background: rgba(239,106,106,0.10); color: #f5a3a3; }
+  .status.critical .dot { background: var(--critical); }
+  .status.neutral { background: rgba(255,255,255,0.05); color: var(--ink-muted); }
+  .status.neutral .dot { background: var(--ink-muted); }
+
+  .svc-row {
+    display: flex; justify-content: space-between; align-items: center; gap: 10px;
+    padding: 9px 8px; margin: 0 -8px; border-radius: var(--r-row);
+    border-bottom: 1px solid var(--gridline); transition: background .15s ease;
+  }
+  .svc-row:last-child { border-bottom: none; }
+  .svc-row:active { background: var(--surface-2); }
+  .svc-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+  .svc-icon {
+    width: 30px; height: 30px; border-radius: 8px; background: var(--surface-2);
+    display: flex; align-items: center; justify-content: center; flex: none; color: var(--ink-2);
+  }
+  .svc-text { min-width: 0; }
+  .svc-name { font-size: 13.5px; font-weight: 500; color: var(--ink-1); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .svc-sub { font-size: 11px; color: var(--ink-muted); margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  .muted { color: var(--ink-muted); font-size: 13px; padding: 4px 4px; }
+
+  .spark { display: block; margin-top: 10px; }
+  .spark-caption { font-size: 10.5px; color: var(--ink-muted); margin-top: 4px; }
+
+  /* chat */
+  #chat { flex: 0 0 auto; background: var(--page); padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); border-top: 1px solid var(--border); }
+  #msgs { max-height: 46vh; overflow-y: auto; margin-bottom: 8px; display: none; -webkit-overflow-scrolling: touch; }
+  #msgs.show { display: block; }
+  .msg { padding: 10px 14px; border-radius: 16px; margin: 5px 0; font-size: 14px; max-width: 88%; white-space: pre-wrap; overflow-wrap: break-word; line-height: 1.45; }
+  .msg b, .msg strong { font-weight: 600; }
+  .msg.user { background: var(--blue); color: #fff; margin-left: auto; border-bottom-right-radius: 5px; }
+  .msg.assistant { background: var(--surface); border: 1px solid var(--border); border-bottom-left-radius: 5px; }
+  #inputRow { display: flex; gap: 8px; }
+  #q { flex: 1; padding: 12px 16px; border-radius: var(--r-pill); border: 1px solid var(--border); background: var(--surface); color: var(--ink-1); font-size: 15px; outline: none; transition: border-color .15s ease; }
+  #q:focus { border-color: var(--blue-dim); }
+  #q::placeholder { color: var(--ink-muted); }
+  #send { padding: 0 20px; border-radius: var(--r-pill); border: none; background: var(--blue); color: white; font-size: 14px; font-weight: 600; }
+  #send:disabled { opacity: .4; }
+
+  ::-webkit-scrollbar { width: 0; height: 0; }
+</style>
+</head>
+<body>
+<div id="desktop-notice">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg>
+  <div class="t1">Odpri na telefonu</div>
+  <div class="t2">Ta nadzorna plošča je narejena samo za mobilne naprave in ni optimizirana za širše zaslone.</div>
+</div>
+<header>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 24 24"><path d="M12 2l7 10-7 10-7-10z"/></svg>
+    <h1>Homelab</h1>
+  </div>
+  <div class="live"><span class="dot"></span><span id="updated">nalagam…</span></div>
+</header>
+<div id="dash"><div class="muted">Nalagam...</div></div>
+<div id="chat">
+  <div id="chat-inner">
+    <div id="msgs"></div>
+    <div id="inputRow">
+      <input id="q" placeholder="Vprašaj kaj o homelabu..." autocomplete="off">
+      <button id="send">Pošlji</button>
+    </div>
+  </div>
+</div>
+<script>
+const dash = document.getElementById('dash');
+const msgs = document.getElementById('msgs');
+const q = document.getElementById('q');
+const send = document.getElementById('send');
+const updated = document.getElementById('updated');
+let history = [];
+
+/* ---- icon set: minimal single-color line icons, viewBox 0 0 24 24 ---- */
+const ICON_PATHS = {
+  cpu: '<rect x="6" y="6" width="12" height="12" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx="1"/><path d="M9 3v3M15 3v3M9 18v3M15 18v3M3 9h3M3 15h3M18 9h3M18 15h3"/>',
+  memory: '<rect x="4" y="7" width="16" height="4.5" rx="1.2"/><rect x="4" y="12.5" width="16" height="4.5" rx="1.2"/>',
+  disk: '<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v12a8 3 0 0 0 16 0V6"/><path d="M4 12a8 3 0 0 0 16 0"/>',
+  gpu: '<rect x="3" y="7" width="18" height="10" rx="2"/><circle cx="12" cy="12" r="2.8"/><path d="M17.5 9.5v5"/>',
+  box: '<path d="M3 8l9-5 9 5-9 5-9-5z"/><path d="M3 8v8l9 5 9-5V8"/><path d="M12 13v8"/>',
+  server: '<rect x="3" y="4" width="18" height="7" rx="2"/><rect x="3" y="13" width="18" height="7" rx="2"/><circle cx="7" cy="7.5" r="1"/><circle cx="7" cy="16.5" r="1"/>',
+  camera: '<path d="M3 8a2 2 0 0 1 2-2h2l1.5-2h7L17 6h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8z"/><circle cx="12" cy="13" r="3.4"/>',
+  play: '<circle cx="12" cy="12" r="8.5"/><path d="M10 8.7l6 3.3-6 3.3z" fill="currentColor" stroke="none"/>',
+  spark: '<path d="M13 2 4 14h6l-1 8 9-12h-6z"/>',
+  image: '<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M21 16.5l-5-5-4 4-3-3-6 6"/>',
+  chart: '<rect x="4" y="12" width="4" height="8" rx="0.8"/><rect x="10" y="7" width="4" height="13" rx="0.8"/><rect x="16" y="15" width="4" height="5" rx="0.8"/>',
+  flame: '<path d="M12 2.5c1 4-3 5-3 9a3 3 0 0 0 6 0c0-1.6-.7-2.6-1-3 1.2.6 2 2 2 3.7a5 5 0 0 1-10 0c0-5.6 4.5-6.2 6-9.7z"/>',
+  shield: '<path d="M12 3l7 3v6c0 5-3 8-7 9-4-1-7-4-7-9V6z"/>',
+  cloud: '<path d="M7.5 18a4 4 0 1 1 .8-7.93A5 5 0 0 1 18 11a3.5 3.5 0 0 1-.5 7H7.5z"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="M20 20l-4.7-4.7"/>',
+  download: '<path d="M12 3v12m0 0l-4-4m4 4l4-4"/><path d="M4 19h16"/>',
+  grid: '<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/>',
+  message: '<path d="M4 5h16v11H8l-4 4V5z"/>',
+};
+
+function icon(name) {
+  return `<svg class="icon" viewBox="0 0 24 24">${ICON_PATHS[name] || ICON_PATHS.box}</svg>`;
+}
+
+const CONTAINER_ICONS = [
+  [/frigate/, 'camera'],
+  [/jellyfin|plex/, 'play'],
+  [/ollama/, 'spark'],
+  [/open-webui/, 'message'],
+  [/comfyui/, 'image'],
+  [/grafana/, 'chart'],
+  [/prometheus/, 'flame'],
+  [/adguard/, 'shield'],
+  [/nextcloud/, 'cloud'],
+  [/prowlarr|radarr|sonarr/, 'search'],
+  [/qbittorrent/, 'download'],
+  [/homarr/, 'grid'],
+  [/node-exporter/, 'cpu'],
+  [/pve-exporter/, 'server'],
+  [/cadvisor/, 'box'],
+  [/gpu-exporter/, 'gpu'],
+];
+
+function iconForContainer(name) {
+  const n = name.toLowerCase();
+  for (const [re, ic] of CONTAINER_ICONS) if (re.test(n)) return ic;
+  return 'box';
+}
+
+function meterClass(value, warnAt = 75, critAt = 90) {
+  if (value >= critAt) return 'critical';
+  if (value >= warnAt) return 'warning';
+  return '';
+}
+
+function meterRange(value, min, max, warnAt = 75, critAt = 90) {
+  const pct = Math.min(100, Math.max(0, 100 * (value - min) / (max - min)));
+  return `<div class="meter ${meterClass(value, warnAt, critAt)}"><div style="width:${pct}%"></div></div>`;
+}
+
+function meter(pct, warnAt = 75, critAt = 90) {
+  return meterRange(pct, 0, 100, warnAt, critAt);
+}
+
+/* thin 2px trend line, ~10% area wash, single rounded end-dot with a surface-color ring -
+   per the dataviz skill's mark spec; no legend/axis since it's always a single series */
+function sparkline(points, { height = 34, warnAt = 75, critAt = 90 } = {}) {
+  if (!points || points.length < 2) return '';
+  const width = 280;
+  const vals = points.map(p => p[1]);
+  const min = Math.min(...vals), max = Math.max(...vals);
+  const range = (max - min) || 1;
+  const pad = 4;
+  const cls = meterClass(vals[vals.length - 1], warnAt, critAt);
+  const color = cls === 'critical' ? 'var(--critical)' : cls === 'warning' ? 'var(--warning)' : 'var(--blue)';
+  const xs = points.map((_, i) => pad + (i / (points.length - 1)) * (width - pad * 2));
+  const ys = vals.map(v => pad + (1 - (v - min) / range) * (height - pad * 2));
+  const line = xs.map((x, i) => `${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
+  const area = `${pad},${height - pad} ${line} ${width - pad},${height - pad}`;
+  const lastX = xs[xs.length - 1], lastY = ys[ys.length - 1];
+  return `<svg class="spark" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" style="width:100%;height:${height}px">
+    <polygon points="${area}" fill="${color}" opacity="0.1"/>
+    <polyline points="${line}" fill="none" stroke="${color}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${lastX.toFixed(1)}" cy="${lastY.toFixed(1)}" r="4" fill="${color}" stroke="var(--surface)" stroke-width="2"/>
+  </svg>`;
+}
+
+function trendAvg(points) {
+  return Math.round(points.reduce((s, p) => s + p[1], 0) / points.length);
+}
+
+function statusBadge(state) {
+  const map = {
+    good:      ['good', 'Aktiven'],
+    healthy:   ['good', 'Zdrav'],
+    warning:   ['warning', 'Opozorilo'],
+    unhealthy: ['critical', 'Ni zdrav'],
+    stopped:   ['critical', 'Ustavljen'],
+    neutral:   ['neutral', 'Ni podatka'],
+  };
+  const [cls, label] = map[state] || map.neutral;
+  return `<span class="status ${cls}"><span class="dot"></span>${label}</span>`;
+}
+
+function fmtGB(n) { return n.toFixed(1).replace(/\.0$/, ''); }
+
+function svcRow(iconKey, name, sub, badgeState) {
+  return `<div class="svc-row">
+    <div class="svc-left">
+      <div class="svc-icon">${icon(iconKey)}</div>
+      <div class="svc-text"><div class="svc-name">${name}</div><div class="svc-sub">${sub}</div></div>
+    </div>
+    ${statusBadge(badgeState)}
+  </div>`;
+}
+
+async function loadHealth() {
+  try {
+    const r = await fetch('/api/health');
+    const d = await r.json();
+    let html = '';
+
+    const ramPct = 100 * d.node.mem_used_gb / d.node.mem_total_gb;
+    html += `<div class="card"><h2>Proxmox gostitelj</h2>
+      <div class="tiles">
+        <div>
+          <div class="tile-head">${icon('cpu')} CPU</div>
+          <div class="tile-value">${d.node.cpu_percent}<span class="unit">%</span></div>
+          ${meter(d.node.cpu_percent)}
+          ${d.cpu_trend ? sparkline(d.cpu_trend) + `<div class="spark-caption">4h · povp. ${trendAvg(d.cpu_trend)}%</div>` : ''}
+        </div>
+        <div>
+          <div class="tile-head">${icon('memory')} Pomnilnik</div>
+          <div class="tile-value">${fmtGB(d.node.mem_used_gb)}<span class="unit">/${fmtGB(d.node.mem_total_gb)} GB</span></div>
+          ${meter(ramPct)}
+          ${d.mem_trend ? sparkline(d.mem_trend) + `<div class="spark-caption">4h · povp. ${trendAvg(d.mem_trend)}%</div>` : ''}
+        </div>
+      </div>
+      <div class="tile-sub">Aktiven ${d.node.uptime_hours}h</div>
+    </div>`;
+
+    if (d.gpu) {
+      const gpuMemPct = d.gpu.mem_total_gb ? 100 * d.gpu.mem_used_gb / d.gpu.mem_total_gb : 0;
+      html += `<div class="card"><h2>${icon('gpu')} GPU (RTX 3060)</h2>
+        <div class="tiles">
+          <div>
+            <div class="tile-head">${icon('gpu')} Obremenitev</div>
+            <div class="tile-value">${d.gpu.utilization_percent ?? '–'}<span class="unit">%</span></div>
+            ${meter(d.gpu.utilization_percent ?? 0)}
+          </div>
+          <div>
+            <div class="tile-head">${icon('flame')} Temperatura</div>
+            <div class="tile-value">${d.gpu.temperature_c ?? '–'}<span class="unit">°C</span></div>
+            ${meterRange(d.gpu.temperature_c ?? 0, 30, 95, 80, 88)}
+          </div>
+        </div>
+        <div class="stat-row" style="margin-top:16px">
+          <span class="label">${icon('memory')} VRAM</span>
+          <span class="value">${fmtGB(d.gpu.mem_used_gb)}<span class="unit"> / ${fmtGB(d.gpu.mem_total_gb)} GB</span></span>
+        </div>
+        ${meter(gpuMemPct)}
+      </div>`;
+    }
+
+    html += `<div class="card"><h2>${icon('disk')} Shramba</h2>`;
+    const pools = d.storage.filter(s => s.total_gb);
+    pools.forEach((s, i) => {
+      html += `<div class="stat-row">
+        <span class="label">${icon('disk')} ${s.storage}</span>
+        <span class="value">${fmtGB(s.used_gb)}<span class="unit"> / ${fmtGB(s.total_gb)} GB</span></span>
+      </div>`;
+      html += `<div class="meter ${meterClass(s.percent_used)}" style="margin-bottom:${i === pools.length - 1 ? '0' : '16px'}"><div style="width:${Math.min(s.percent_used,100)}%"></div></div>`;
+    });
+    html += `</div>`;
+
+    html += `<div class="card"><h2>${icon('server')} VM &amp; LXC</h2>`;
+    d.guests.forEach(g => {
+      const st = g.status === 'running' ? 'good' : 'stopped';
+      const diskFree = g.real_disk_free_gb !== undefined ? `${fmtGB(g.real_disk_free_gb)} GB prosto` : `${fmtGB(g.disk_max_gb - g.disk_used_gb)} GB prosto`;
+      html += svcRow('server', g.name, `#${g.vmid} · CPU ${g.cpu_percent}% · ${diskFree}`, st);
+    });
+    html += `</div>`;
+
+    if (d.containers && d.containers.length) {
+      html += `<div class="card"><h2>${icon('box')} Docker (docker-vm)</h2>`;
+      d.containers.forEach(c => {
+        let st = 'neutral';
+        if (c.health === 'unhealthy') st = 'unhealthy';
+        else if (c.health === 'healthy') st = 'healthy';
+        else if (c.state === 'running') st = 'good';
+        else st = 'stopped';
+        html += svcRow(iconForContainer(c.name), c.name, c.status, st);
+      });
+      html += `</div>`;
+    }
+
+    dash.innerHTML = html;
+    updated.textContent = new Date().toLocaleTimeString('sl-SI', {hour: '2-digit', minute: '2-digit'});
+  } catch (e) {
+    dash.innerHTML = `<div class="muted">Napaka pri nalaganju: ${e}</div>`;
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function renderMarkdownish(text) {
+  let s = escapeHtml(text);
+  s = s.replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  s = s.replace(/^#{1,6}\s*(.+)$/gm, '<b>$1</b>');
+  return s;
+}
+
+function addMsg(role, text) {
+  msgs.classList.add('show');
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.innerHTML = renderMarkdownish(text);
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendMsg() {
+  const text = q.value.trim();
+  if (!text) return;
+  q.value = '';
+  send.disabled = true;
+  addMsg('user', text);
+  const thinking = document.createElement('div');
+  thinking.className = 'msg assistant muted';
+  thinking.textContent = '…';
+  msgs.appendChild(thinking);
+  msgs.scrollTop = msgs.scrollHeight;
+  try {
+    const r = await fetch('/api/chat', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, history})
+    });
+    const d = await r.json();
+    history = d.history;
+    thinking.remove();
+    addMsg('assistant', d.reply);
+  } catch (e) {
+    thinking.textContent = 'Napaka: ' + e;
+  }
+  send.disabled = false;
+}
+
+send.onclick = sendMsg;
+q.addEventListener('keydown', e => { if (e.key === 'Enter') sendMsg(); });
+
+loadHealth();
+setInterval(loadHealth, 30000);
+</script>
+</body>
+</html>
