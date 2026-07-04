@@ -14,3 +14,6 @@
 {"id": "ctx-followup-logs", "turns": ["is frigate healthy?", "show me its logs"], "checks": {"must_call": ["get_container_logs"], "must_match": ["(?i)frigate"], "expect_tools": true}}
 {"id": "ctx-followup-chain", "turns": ["is homarr healthy?", "and its memory usage?"], "checks": {"must_call": ["get_container_stats"], "must_match": ["(?i)homarr"], "must_not_match": ["[\\u4e00-\\u9fff]"]}}
 {"id": "anomalies-tool", "turns": ["was there anything unusual or abnormal in the last day?"], "checks": {"must_call": ["get_anomalies"], "expect_tools": true}}
+{"id": "diagnose-direct", "turns": ["diagnose docker-homarr-1"], "checks": {"must_call": ["diagnose"], "must_match": ["(?i)(probable cause|healthy|cause)"], "must_not_match": ["[\\u4e00-\\u9fff]"]}}
+{"id": "diagnose-why-followup", "turns": ["is homarr healthy?", "why is it behaving like that?"], "checks": {"must_call_any": ["diagnose", "get_container_logs"], "must_match": ["(?i)homarr"]}}
+{"id": "diagnose-not-overused", "turns": ["is jellyfin running?"], "checks": {"must_not_call": ["diagnose"], "expect_tools": true}}
