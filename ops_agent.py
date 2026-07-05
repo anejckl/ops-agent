@@ -317,6 +317,119 @@ def get_gpu_status():
     }
 
 
+# Friendly names for blackbox probe targets, keyed by host or host:port from the probed URL.
+PROBE_NAMES = {
+    "homarr": "Homarr",
+    "jellyfin": "Jellyfin",
+    "sonarr": "Sonarr",
+    "radarr": "Radarr",
+    "prowlarr": "Prowlarr",
+    "qbittorrent": "qBittorrent",
+    "grafana": "Grafana",
+    "adguard": "AdGuard Home",
+    "nextcloud": "Nextcloud",
+    "frigate": "Frigate",
+    "comfyui-nvidia": "ComfyUI",
+    "open-webui": "Open WebUI",
+    "192.168.1.1": "Router",
+    "100.78.87.63:3001": "Uptime Kuma",
+    "100.111.223.24:8006": "Proxmox UI",
+    "100.78.87.63:9443": "Portainer",
+}
+
+
+def _probe_display_name(url):
+    from urllib.parse import urlparse
+    p = urlparse(url)
+    host = p.hostname or url
+    return PROBE_NAMES.get(f"{host}:{p.port}" if p.port else host) or PROBE_NAMES.get(host) or host.capitalize()
+
+
+def get_service_uptime():
+    """Current up/down state of all HTTP services probed by blackbox-exporter (dashboard data source)."""
+    success = _prom_instant_by_label("probe_success", "instance")
+    duration = _prom_instant_by_label("probe_duration_seconds", "instance")
+    if not success:
+        return {"error": "No blackbox probe metrics available (Prometheus or blackbox-exporter may be down)."}
+    services = [
+        {
+            "name": _probe_display_name(url),
+            "url": url,
+            "up": val == 1,
+            "latency_ms": round(duration[url] * 1000) if url in duration else None,
+        }
+        for url, val in success.items()
+    ]
+    services.sort(key=lambda s: (s["up"], s["name"].lower()))
+    return {"up": sum(1 for s in services if s["up"]), "total": len(services), "services": services}
+
+
+def _smart_attr_raw(attribute_name):
+    # attribute names come from a fixed allowlist below, safe to interpolate
+    return _prom_instant_by_label(
+        f'smartctl_device_attribute{{attribute_value_type="raw",attribute_name="{attribute_name}"}}', "device"
+    )
+
+
+def get_disk_health():
+    """SMART health of the physical disks in the Proxmox host, via smartctl_exporter (dashboard data source)."""
+    smart_status = _prom_instant_by_label("smartctl_device_smart_status", "device")
+    if not smart_status:
+        return {"error": "No SMART metrics available (smartctl_exporter may be down)."}
+    temp = _prom_instant_by_label('smartctl_device_temperature{temperature_type="current"}', "device")
+    power_on = _prom_instant_by_label("smartctl_device_power_on_seconds", "device")
+    pct_used = _prom_instant_by_label("smartctl_device_percentage_used", "device")
+    spare = _prom_instant_by_label("smartctl_device_available_spare", "device")
+    media_err = _prom_instant_by_label("smartctl_device_media_errors", "device")
+    realloc = _smart_attr_raw("Reallocated_Sector_Ct")
+    pending = _smart_attr_raw("Current_Pending_Sector")
+    uncorr = _smart_attr_raw("Offline_Uncorrectable")
+    models = _prom_labels_by_device("smartctl_device", "model_name")
+
+    disks = []
+    for dev in sorted(smart_status):
+        passed = smart_status[dev] == 1
+        t = temp.get(dev)
+        defects = None
+        if dev in realloc or dev in pending or dev in uncorr:
+            defects = {
+                "reallocated": int(realloc.get(dev, 0)),
+                "pending": int(pending.get(dev, 0)),
+                "uncorrectable": int(uncorr.get(dev, 0)),
+            }
+        nvme = None
+        if dev in pct_used or dev in spare or dev in media_err:
+            nvme = {
+                "percentage_used": pct_used.get(dev),
+                "available_spare": spare.get(dev),
+                "media_errors": int(media_err.get(dev, 0)),
+            }
+        status = "healthy"
+        if defects and any(v > 0 for v in defects.values()):
+            status = "warning"
+        if nvme and ((nvme["percentage_used"] or 0) >= 80 or (nvme["available_spare"] or 100) <= 25):
+            status = "warning"
+        if t is not None and t >= 60:
+            status = "warning"
+        if (
+            not passed
+            or (nvme and (nvme["media_errors"] > 0 or (nvme["available_spare"] or 100) <= 10))
+            or (t is not None and t >= 70)
+        ):
+            status = "critical"
+        disks.append({
+            "device": dev,
+            "model": models.get(dev),
+            "status": status,
+            "smart_passed": passed,
+            "temp_c": round(t, 1) if t is not None else None,
+            "power_on_days": round(power_on[dev] / 86400) if dev in power_on else None,
+            "defects": defects,
+            "nvme": nvme,
+        })
+    return {"disks": disks}
+
+
 def get_health_history(hours: int = 24):
     """Get a log of container/VM STATE CHANGES (e.g. became unhealthy, went down, came back) over the last N hours. Use this for questions like 'has anything gone wrong recently', 'what changed today', 'did anything restart overnight', or 'when did X become unhealthy'. For alerts firing RIGHT NOW use get_active_alerts instead - this tool is the log of PAST changes."""
     if not os.path.exists(HEALTH_HISTORY_PATH):
@@ -346,16 +459,36 @@ def _vm_name_redirect(name):
     return None
 
 
-def _prom_instant_by_name(query):
-    """Instant query returning {container_name: value} keyed by the cAdvisor 'name' label."""
+def _prom_instant_by_label(query, label):
+    """Instant query returning {label_value: value} keyed by the given metric label."""
     try:
         r = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query}, timeout=10)
         r.raise_for_status()
         out = {}
         for row in r.json()["data"]["result"]:
-            n = row["metric"].get("name")
+            n = row["metric"].get(label)
             if n:
                 out[n] = float(row["value"][1])
+        return out
+    except (requests.RequestException, KeyError, ValueError):
+        return {}
+
+
+def _prom_instant_by_name(query):
+    """Instant query returning {container_name: value} keyed by the cAdvisor 'name' label."""
+    return _prom_instant_by_label(query, "name")
+
+
+def _prom_labels_by_device(query, value_label):
+    """Instant query over an info-style metric, returning {device: value_label} from the labels."""
+    try:
+        r = requests.get(f"{PROMETHEUS_URL}/api/v1/query", params={"query": query}, timeout=10)
+        r.raise_for_status()
+        out = {}
+        for row in r.json()["data"]["result"]:
+            dev = row["metric"].get("device")
+            if dev:
+                out[dev] = row["metric"].get(value_label)
         return out
     except (requests.RequestException, KeyError, ValueError):
         return {}

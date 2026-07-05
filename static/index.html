@@ -128,6 +128,28 @@
 
   .muted { color: var(--ink-muted); font-size: 13px; padding: 4px 4px; }
 
+  /* active alerts strip: only rendered while something is firing */
+  .card.alert-strip { border-left: 4px solid var(--warning); background: linear-gradient(90deg, rgba(240,169,59,0.06), transparent 45%), var(--surface); }
+  .card.alert-strip.critical { border-left-color: var(--critical); background: linear-gradient(90deg, rgba(239,106,106,0.06), transparent 45%), var(--surface); }
+  .alert-row { padding: 9px 0; border-bottom: 1px solid var(--gridline); }
+  .alert-row:first-of-type { padding-top: 0; }
+  .alert-row:last-child { border-bottom: none; padding-bottom: 0; }
+  .alert-head { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+  .alert-head b { color: var(--ink-1); font-weight: 600; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .alert-summary { font-size: 12.5px; color: var(--ink-2); margin-top: 4px; line-height: 1.4; }
+  .alert-when { font-size: 11px; color: var(--ink-muted); margin-top: 2px; font-variant-numeric: tabular-nums; }
+
+  /* service uptime: reachable services as a compact 2-col grid, down ones get full rows */
+  .svc-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 14px; }
+  .svc-chip { display: flex; align-items: center; gap: 7px; padding: 5px 0; min-width: 0; font-size: 12.5px; }
+  .svc-chip .dot { width: 5px; height: 5px; border-radius: 50%; background: var(--good); flex: none; }
+  .svc-chip .nm { color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .svc-chip .ms { color: var(--ink-muted); font-size: 10.5px; margin-left: auto; font-variant-numeric: tabular-nums; flex: none; }
+
+  /* disk SMART card */
+  .disk-note { font-size: 11px; color: var(--ink-muted); margin: -10px 0 0; line-height: 1.5; }
+  .disk-note .warn { color: #f5c579; }
+
   .spark { display: block; margin-top: 10px; }
   .spark-caption { font-size: 10.5px; color: var(--ink-muted); margin-top: 4px; }
 
@@ -246,6 +268,8 @@ const ICON_PATHS = {
   grid: '<rect x="4" y="4" width="7" height="7" rx="1.2"/><rect x="13" y="4" width="7" height="7" rx="1.2"/><rect x="4" y="13" width="7" height="7" rx="1.2"/><rect x="13" y="13" width="7" height="7" rx="1.2"/>',
   message: '<path d="M4 5h16v11H8l-4 4V5z"/>',
   clock: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
+  bell: '<path d="M6 9.5a6 6 0 0 1 12 0c0 4 1.5 5.5 1.5 5.5h-15S6 13.5 6 9.5z"/><path d="M10 18.5a2 2 0 0 0 4 0"/>',
+  globe: '<circle cx="12" cy="12" r="8.5"/><path d="M3.5 12h17"/><path d="M12 3.5c2.4 2.3 3.7 5.2 3.7 8.5s-1.3 6.2-3.7 8.5c-2.4-2.3-3.7-5.2-3.7-8.5s1.3-6.2 3.7-8.5z"/>',
 };
 
 function icon(name) {
@@ -330,6 +354,8 @@ function statusBadge(state) {
     warning:   ['warning', 'Opozorilo'],
     unhealthy: ['critical', 'Ni zdrav'],
     stopped:   ['critical', 'Ustavljen'],
+    critical:  ['critical', 'Kritično'],
+    down:      ['critical', 'Nedosegljiv'],
     neutral:   ['neutral', 'Ni podatka'],
   };
   const [cls, label] = map[state] || map.neutral;
@@ -363,6 +389,21 @@ async function loadHealth() {
     const r = await fetch('/api/health');
     const d = await r.json();
     let html = '';
+
+    if (d.alerts && d.alerts.length) {
+      const maxSev = d.alerts.some(a => a.severity === 'critical') ? 'critical' : 'warning';
+      html += `<div class="card alert-strip ${maxSev}"><h2>${icon('bell')} Aktivni alarmi (${d.alerts.length})</h2>`;
+      d.alerts.forEach(a => {
+        const sev = a.severity === 'critical' ? 'critical' : 'warning';
+        const t = a.started ? new Date(a.started).toLocaleString('sl-SI', {day: 'numeric', month: 'numeric', hour: '2-digit', minute: '2-digit'}) : '';
+        html += `<div class="alert-row">
+          <div class="alert-head">${statusBadge(sev)}<b>${a.alertname || 'Alarm'}</b></div>
+          ${a.summary ? `<div class="alert-summary">${a.summary}</div>` : ''}
+          ${t ? `<div class="alert-when">od ${t}</div>` : ''}
+        </div>`;
+      });
+      html += `</div>`;
+    }
 
     const ramPct = 100 * d.node.mem_used_gb / d.node.mem_total_gb;
     html += `<div class="card"><h2>Proxmox gostitelj</h2>
@@ -440,6 +481,53 @@ async function loadHealth() {
         else st = 'stopped';
         html += svcRow(iconForContainer(c.name), c.name, c.status, st,
           `data-type="container" data-id="${c.name}" data-name="${c.name}"`);
+      });
+      html += `</div>`;
+    }
+
+    if (d.services && d.services.services) {
+      html += `<div class="card"><h2>${icon('globe')} Storitve · ${d.services.up}/${d.services.total} dostopnih</h2>`;
+      const downs = d.services.services.filter(s => !s.up);
+      const ups = d.services.services.filter(s => s.up);
+      downs.forEach(s => {
+        html += svcRow('globe', s.name, s.url.replace(/^https?:\/\//, ''), 'down');
+      });
+      if (ups.length) {
+        html += `<div class="svc-grid"${downs.length ? ' style="margin-top:10px"' : ''}>`;
+        ups.forEach(s => {
+          html += `<div class="svc-chip"><span class="dot"></span><span class="nm">${s.name}</span><span class="ms">${s.latency_ms != null ? s.latency_ms + ' ms' : ''}</span></div>`;
+        });
+        html += `</div>`;
+      }
+      html += `</div>`;
+    }
+
+    if (d.disks && d.disks.disks && d.disks.disks.length) {
+      html += `<div class="card"><h2>${icon('disk')} Zdravje diskov</h2>`;
+      d.disks.disks.forEach((dsk, i) => {
+        const last = i === d.disks.disks.length - 1;
+        const model = dsk.model ? (dsk.model.length > 28 ? dsk.model.slice(0, 27) + '…' : dsk.model) : '';
+        html += `<div class="stat-row">
+          <span class="label">${icon('disk')} <b style="color:var(--ink-1)">${dsk.device}</b>${model ? `&nbsp;· ${model}` : ''}</span>
+          ${statusBadge(dsk.status)}
+        </div>`;
+        if (dsk.temp_c != null) {
+          html += `<div class="stat-row">
+            <span class="label">Temperatura</span>
+            <span class="value">${dsk.temp_c}<span class="unit"> °C</span></span>
+          </div>`;
+          html += meterRange(dsk.temp_c, 25, 75, 55, 65);
+        }
+        const notes = [];
+        if (dsk.defects && (dsk.defects.reallocated || dsk.defects.pending || dsk.defects.uncorrectable)) {
+          notes.push(`<span class="warn">Realoc. sektorji: ${dsk.defects.reallocated} · Čakajoči: ${dsk.defects.pending} · Nepopravljivi: ${dsk.defects.uncorrectable}</span>`);
+        }
+        if (dsk.nvme) {
+          const wear = `Obraba: ${dsk.nvme.percentage_used ?? '–'} % · Rezerva: ${dsk.nvme.available_spare ?? '–'} %`;
+          notes.push(dsk.status === 'healthy' ? wear : `<span class="warn">${wear}</span>`);
+        }
+        if (dsk.power_on_days != null) notes.push(`Vklopljen: ${dsk.power_on_days} dni`);
+        if (notes.length) html += `<div class="disk-note"${last ? '' : ' style="margin-bottom:18px"'}>${notes.join('<br>')}</div>`;
       });
       html += `</div>`;
     }

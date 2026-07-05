@@ -16,6 +16,7 @@ from ops_agent import (
     list_vms, get_vm_status, get_storage_status, get_node_status, get_docker_containers,
     get_trend_series, get_gpu_status, get_guest_trend, get_container_trend, get_recent_events,
     read_anomalies, get_storage_forecasts, diagnose, map_alert_to_entity,
+    get_active_alerts, get_service_uptime, get_disk_health,
     ask, ask_stream, notify_ntfy,
 )
 
@@ -42,6 +43,15 @@ def health():
     gpu = get_gpu_status()
     if isinstance(gpu, dict) and "error" in gpu:
         gpu = None
+    alerts = get_active_alerts()
+    if not isinstance(alerts, list):
+        alerts = []
+    services = get_service_uptime()
+    if isinstance(services, dict) and "error" in services:
+        services = None
+    disks = get_disk_health()
+    if isinstance(disks, dict) and "error" in disks:
+        disks = None
     return {
         "node": get_node_status(),
         "storage": get_storage_status(),
@@ -53,6 +63,9 @@ def health():
         "events": get_recent_events(24)[:15],
         "anomalies": read_anomalies(48)[:10],
         "forecasts": get_storage_forecasts(),
+        "alerts": alerts,
+        "services": services,
+        "disks": disks,
     }
 
 
