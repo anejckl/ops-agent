@@ -7,16 +7,16 @@ import sys
 import time
 import requests
 
-PROXMOX_HOST = "192.168.1.77"
-PROXMOX_TOKEN = "REDACTED_TOKEN"
-PROXMOX_NODE = "pve"
-OLLAMA_URL = "http://192.168.1.136:11434/api/chat"
+PROXMOX_HOST = os.environ.get("PROXMOX_HOST", "192.168.1.77")
+PROXMOX_TOKEN = os.environ.get("PROXMOX_TOKEN", "")
+PROXMOX_NODE = os.environ.get("PROXMOX_NODE", "pve")
+OLLAMA_URL = os.environ.get("OLLAMA_URL", "http://192.168.1.136:11434/api/chat")
 MODEL = os.environ.get("OPS_MODEL", "qwen2.5:7b")
-DOCKER_VM_HOST = "192.168.1.136"
+DOCKER_VM_HOST = os.environ.get("DOCKER_VM_HOST", "192.168.1.136")
 DOCKER_RO_KEY = "/root/.ssh/docker_ro_key"
 DOCKER_LOGS_KEY = "/root/.ssh/docker_logs_key"
-PROMETHEUS_URL = "http://192.168.1.136:9090"
-ALERTMANAGER_URL = "http://192.168.1.136:9093"
+PROMETHEUS_URL = os.environ.get("PROMETHEUS_URL", "http://192.168.1.136:9090")
+ALERTMANAGER_URL = os.environ.get("ALERTMANAGER_URL", "http://192.168.1.136:9093")
 HEALTH_HISTORY_PATH = "/root/webapp/health_history.jsonl"
 
 PVE_HEADERS = {"Authorization": f"PVEAPIToken={PROXMOX_TOKEN}"}
